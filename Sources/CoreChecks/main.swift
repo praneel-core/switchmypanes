@@ -770,5 +770,16 @@ do {
     check(!KeyClassifier.isTypable("\u{F700}") && !KeyClassifier.isTypable("\r") && !KeyClassifier.isTypable("") && !KeyClassifier.isTypable("ab") && !KeyClassifier.isTypable("\u{7F}"), "arrow keys, control characters, empty and multi-character strings are not")
 }
 
+section("Tile size and list view")
+do {
+    eq(TileSize.small.scale, 0.8, "small tiles"); eq(TileSize.medium.scale, 1.0, "medium is the base size"); eq(TileSize.large.scale, 1.2, "large tiles")
+    eq(TileSize(rawValue: "large"), .large, "sizes are saved by name"); eq(TileSize(rawValue: "huge"), nil, "an unknown name is rejected (the app falls back to medium)")
+    check(!OverlayDensity.usesList(count: 12, preference: .auto), "automatic: 12 windows still get tiles")
+    check(OverlayDensity.usesList(count: 13, preference: .auto), "automatic: more than 12 windows switch to the list")
+    check(!OverlayDensity.usesList(count: 40, preference: .never), "never: always tiles"); check(OverlayDensity.usesList(count: 3, preference: .always), "always: the list even for 3 windows")
+    check(!OverlayDensity.usesList(count: 0, preference: .always), "no windows: nothing to list")
+    eq(ListPreference(rawValue: "auto"), .auto, "the list preference is saved by name")
+}
+
 print("\n\(total - failures)/\(total) checks passed")
 exit(failures == 0 ? 0 : 1)

@@ -1,38 +1,57 @@
 import AppKit
 import SwitchmypanesCore
 
-/// How big the tiles are and how many fit on the screen.
+/// How big the tiles are and how many fit on the screen. In list mode each window is a compact row (no picture).
 struct SwitcherLayout {
     static let baseTile = NSSize(width: 236, height: 194)
+    static let rowSize = NSSize(width: 300, height: 50)
     static let spacing: CGFloat = 14
+    static let rowSpacing: CGFloat = 8
     static let padding: CGFloat = 24
 
     let scale: CGFloat
     let columns: Int
     let rows: Int
     let capacity: Int
-    var tile: NSSize { NSSize(width: Self.baseTile.width * scale, height: Self.baseTile.height * scale) }
+    var compact = false
+    var tile: NSSize { compact ? Self.rowSize : NSSize(width: Self.baseTile.width * scale, height: Self.baseTile.height * scale) }
+    var spacing: CGFloat { compact ? Self.rowSpacing : Self.spacing }
 
-    static func plan(count: Int, screen: NSScreen) -> SwitcherLayout {
-        plan(count: count, bounds: screen.visibleFrame.size, widthFraction: 0.9, heightFraction: 0.85)
+    static func plan(count: Int, screen: NSScreen, sizeScale: CGFloat = 1, compact: Bool = false) -> SwitcherLayout {
+        plan(count: count, bounds: screen.visibleFrame.size, widthFraction: 0.9, heightFraction: 0.85, sizeScale: sizeScale, compact: compact)
     }
 
-    /// Layout that fits inside `bounds` (a screen, or just the empty half for Snap Assist).
-    static func plan(count: Int, bounds: CGSize, widthFraction: CGFloat, heightFraction: CGFloat) -> SwitcherLayout {
+    /// Layout that fits inside `bounds` (a screen, or just the empty half for Snap Assist). `sizeScale` makes tiles bigger or
+    /// smaller (Preferences); it is the size tried FIRST, and tiles shrink from there until everything fits.
+    static func plan(count: Int, bounds: CGSize, widthFraction: CGFloat, heightFraction: CGFloat,
+                     sizeScale: CGFloat = 1, compact: Bool = false) -> SwitcherLayout {
         let maxW = bounds.width * widthFraction - 2 * padding
         // room for the caption line as well
         let maxH = bounds.height * heightFraction - 2 * padding - OverlayTheme.captionHeight
+        if compact { return planList(count: count, maxW: maxW, maxH: maxH) }
         var best = SwitcherLayout(scale: 0.5, columns: 1, rows: 1, capacity: 1)
-        for scale in [1.0, 0.85, 0.7, 0.55, 0.45] as [CGFloat] {
+        for factor in [1.0, 0.85, 0.7, 0.55, 0.45] as [CGFloat] {
+            let scale = max(0.4, sizeScale * factor)
             let tw = baseTile.width * scale, th = baseTile.height * scale
             let cols = max(1, Int((maxW + spacing) / (tw + spacing)))
             let maxRows = max(1, Int((maxH + spacing) / (th + spacing)))
-            let usedCols = min(count, cols)
+            let usedCols = max(1, min(count, cols))
             let rows = max(1, Int((Double(count) / Double(usedCols)).rounded(.up)))
             best = SwitcherLayout(scale: scale, columns: usedCols, rows: min(rows, maxRows), capacity: usedCols * maxRows)
             if rows <= maxRows { return SwitcherLayout(scale: scale, columns: usedCols, rows: rows, capacity: count) }
         }
         return best   // doesn't fit even at the smallest size: the caller shows only `capacity` windows
+    }
+
+    /// The compact list: as few columns as will do, so a long list reads top to bottom.
+    private static func planList(count: Int, maxW: CGFloat, maxH: CGFloat) -> SwitcherLayout {
+        let maxCols = max(1, min(6, Int((maxW + rowSpacing) / (rowSize.width + rowSpacing))))
+        let maxRows = max(1, Int((maxH + rowSpacing) / (rowSize.height + rowSpacing)))
+        for cols in 1...maxCols {
+            let rows = max(1, Int((Double(max(count, 1)) / Double(cols)).rounded(.up)))
+            if rows <= maxRows { return SwitcherLayout(scale: 1, columns: max(1, min(cols, count)), rows: rows, capacity: count, compact: true) }
+        }
+        return SwitcherLayout(scale: 1, columns: maxCols, rows: maxRows, capacity: maxCols * maxRows, compact: true)
     }
 }
 
@@ -55,6 +74,7 @@ final class WindowTileView: NSView {
     private let tagView: TagView?
     private let icon: NSImage?
     private let hasDistinctTitle: Bool
+    private let compact: Bool
     var onClick: ((Int) -> Void)?
     var onHover: ((Int) -> Void)?
     var onClose: ((Int) -> Void)?
@@ -62,7 +82,8 @@ final class WindowTileView: NSView {
 
     var isSelected = false { didSet { refreshAppearance() } }
 
-    init(frame: NSRect, index: Int, info: WindowInfo, thumbnail: NSImage?) {
+    init(frame: NSRect, index: Int, info: WindowInfo, thumbnail: NSImage?, compact: Bool = false) {
+        self.compact = compact
         self.index = index; self.windowID = info.id; self.icon = info.icon
         hasDistinctTitle = info.title != info.appName
         titleLabel = NSTextField(labelWithString: hasDistinctTitle ? info.title : info.appName)
@@ -97,7 +118,8 @@ final class WindowTileView: NSView {
         titleLabel.toolTip = tip
 
         for l in [titleLabel, appLabel] { l.wantsLayer = true; l.shadow = OverlayTheme.softTextShadow() }     // readable on clear glass
-        addSubview(thumbFrame); addSubview(badge); addSubview(titleLabel); addSubview(appLabel)
+        if !compact { addSubview(thumbFrame) }
+        addSubview(badge); addSubview(titleLabel); addSubview(appLabel)
         if let tagView { addSubview(tagView) }
 
         // Close button: appears while the mouse is over the tile (for a window on another desktop it first switches there).
@@ -107,7 +129,11 @@ final class WindowTileView: NSView {
         closeButton.alphaValue = 0                       // fades in while the mouse is over the tile
         addSubview(closeButton)
 
-        if let thumbnail { setThumbnail(thumbnail) } else { showIconPlaceholder() }
+        if compact {
+            wantsLayer = true
+            layer?.cornerRadius = 16
+            layer?.backgroundColor = NSColor.white.withAlphaComponent(0.07).cgColor        // a row, so the list reads as items
+        } else if let thumbnail { setThumbnail(thumbnail) } else { showIconPlaceholder() }
         addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .mouseMoved, .activeAlways, .inVisibleRect],
                                        owner: self, userInfo: nil))
         refreshAppearance()
@@ -116,6 +142,7 @@ final class WindowTileView: NSView {
 
     override func layout() {
         super.layout()
+        if compact { layoutRow(); return }
         let pad: CGFloat = 12
         let footerH = max(34, bounds.height * 0.2)
         let thumbRect = NSRect(x: pad, y: footerH + 6, width: bounds.width - 2 * pad, height: bounds.height - footerH - 6 - pad + 2)
@@ -134,6 +161,24 @@ final class WindowTileView: NSView {
         }
         closeButton.frame = NSRect(x: thumbRect.minX + 8, y: thumbRect.maxY - 32, width: 24, height: 24)
         if let tagView { tagView.frame.origin = NSPoint(x: thumbRect.maxX - tagView.frame.width - 8, y: thumbRect.maxY - tagView.frame.height - 8) }
+    }
+
+    /// The compact form: icon, title and app name, the tag and the close button on one row.
+    private func layoutRow() {
+        let pad: CGFloat = 14, iconSize: CGFloat = 30
+        badge.frame = NSRect(x: pad, y: (bounds.height - iconSize) / 2, width: iconSize, height: iconSize)
+        let closeW: CGFloat = 24
+        closeButton.frame = NSRect(x: bounds.maxX - pad - closeW + 4, y: (bounds.height - closeW) / 2, width: closeW, height: closeW)
+        let tagW = tagView?.frame.width ?? 0
+        let rightEdge = bounds.maxX - pad - closeW - 2 - (tagView == nil ? 0 : tagW + 8)
+        if let tagView { tagView.frame.origin = NSPoint(x: bounds.maxX - pad - closeW - tagW - 2, y: (bounds.height - tagView.frame.height) / 2) }
+        let textX = pad + iconSize + 10, textW = max(20, rightEdge - textX)
+        if hasDistinctTitle {
+            titleLabel.frame = NSRect(x: textX, y: bounds.height / 2, width: textW, height: 16)
+            appLabel.frame = NSRect(x: textX, y: bounds.height / 2 - 15, width: textW, height: 14)
+        } else {
+            titleLabel.frame = NSRect(x: textX, y: (bounds.height - 16) / 2, width: textW, height: 16)
+        }
     }
 
     func setThumbnail(_ image: NSImage) {
@@ -228,7 +273,7 @@ final class SwitcherPanel: NSPanel {
         initialMouse = NSEvent.mouseLocation
         ringPlaced = false
 
-        let tile = layout.tile, sp = SwitcherLayout.spacing, pad = SwitcherLayout.padding
+        let tile = layout.tile, sp = layout.spacing, pad = SwitcherLayout.padding
         let hasQuery = !(query ?? "").isEmpty
         let header: CGFloat = (caption == nil && !hasQuery) ? 0 : OverlayTheme.captionHeight
         let gridWidth = CGFloat(layout.columns) * tile.width + CGFloat(layout.columns - 1) * sp
@@ -248,7 +293,7 @@ final class SwitcherPanel: NSPanel {
             // Row 0 is at the top, but AppKit's origin is bottom-left.
             let origin = NSPoint(x: leftInset + rowInset + CGFloat(col) * (tile.width + sp),
                                  y: height - pad - header - tile.height - CGFloat(row) * (tile.height + sp))
-            let v = WindowTileView(frame: NSRect(origin: origin, size: tile), index: i, info: w, thumbnail: thumbnail(w.id))
+            let v = WindowTileView(frame: NSRect(origin: origin, size: tile), index: i, info: w, thumbnail: layout.compact ? nil : thumbnail(w.id), compact: layout.compact)
             v.onClick = { [weak self] in self?.onClick?($0) }
             v.onClose = { [weak self] in self?.onClose?($0) }
             v.onContextMenu = { [weak self] idx, event in self?.onContextMenu?(idx, event) }

@@ -25,7 +25,7 @@ Sources/
     SnapLayout.swift              the nine Snap Layouts presets with gap-aware zone frames
     SnapMotion.swift              when the snap animation plays and how long (`SnapMotionPolicy`)
     LinkedResize.swift            shared-divider resizing, dividers, hover zones, MinSizeLearning
-    Switcher.swift                MRUList, SwitcherSelection (the "second window first" rule, spatial arrow keys), OverlayGrid (the grid layout rule shared by drawing and navigation)
+    Switcher.swift                TileSize / ListPreference / OverlayDensity (when the overlay uses the compact list), MRUList, SwitcherSelection (the "second window first" rule, spatial arrow keys), OverlayGrid (the grid layout rule shared by drawing and navigation)
     SpaceClassifier.swift         which windows belong in the switcher (current / other desktop / minimized / junk)
     WindowSearch.swift            type-to-search matching (every word must appear in app name, title or tag; accent/case-insensitive)
     KeyClassifier.swift           what a key press means: the ONLY place that decides which keys we swallow

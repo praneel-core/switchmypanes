@@ -111,3 +111,26 @@ public struct SwitcherSelection: Equatable {
         }
     }
 }
+
+/// How big the overlay's tiles are, and when it switches to a compact list.
+public enum TileSize: String, CaseIterable {
+    case small, medium, large
+    /// Multiplier on the base tile size.
+    public var scale: Double { switch self { case .small: return 0.8; case .medium: return 1.0; case .large: return 1.2 } }
+}
+
+public enum ListPreference: String, CaseIterable { case auto, always, never }
+
+public enum OverlayDensity {
+    /// "Automatic" switches to the compact list when there are more windows than this.
+    public static let autoThreshold = 12
+
+    /// Tiles with pictures, or a compact list of rows (no pictures) for many windows.
+    public static func usesList(count: Int, preference: ListPreference) -> Bool {
+        switch preference {
+        case .always: return count > 0
+        case .never: return false
+        case .auto: return count > autoThreshold
+        }
+    }
+}

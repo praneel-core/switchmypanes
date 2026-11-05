@@ -68,10 +68,10 @@ enum OverlayPreview {
         let screen = NSScreen.screens.first ?? NSScreen.main!
         let base = sampleWindows().map(\.0)
         var checked = 0, bad = 0
-        for count in 2...16 {
+        for count in 2...30 {
             let windows = (0..<count).map { i -> WindowInfo in var w = base[i % base.count]; w = WindowInfo(id: UInt32(100 + i), pid: w.pid, appName: w.appName, title: w.title, frame: .zero, icon: w.icon, placement: w.placement, spaceLabel: w.spaceLabel, bundleID: w.bundleID); return w }
-            for width in [CGFloat(1100), 1470, 1920] {
-                let layout = SwitcherLayout.plan(count: count, bounds: CGSize(width: width, height: 1000), widthFraction: 0.9, heightFraction: 0.85)
+            for (width, sizeScale, compact) in [(CGFloat(1100), CGFloat(1), false), (1470, 1, false), (1920, 1, false), (1470, 0.8, false), (1470, 1.2, false), (1920, 1.2, false), (1100, 1, true), (1470, 1, true), (1920, 1, true)] {
+                let layout = SwitcherLayout.plan(count: count, bounds: CGSize(width: width, height: 1000), widthFraction: 0.9, heightFraction: 0.85, sizeScale: sizeScale, compact: compact)
                 let panel = SwitcherPanel()
                 panel.present(windows: windows, layout: layout, selected: 0, on: screen, show: false, thumbnail: { _ in nil })
                 let frames = panel.debugTileFrames
@@ -91,7 +91,7 @@ enum OverlayPreview {
                         checked += 1
                         if row(of: sel.index) != wanted || abs(frames[sel.index].midX - frames[i].midX) > nearest + 0.5 {
                             bad += 1
-                            if bad <= 5 { print("MISMATCH: \(count) windows, width \(Int(width)), tile \(i) \(key) -> \(sel.index) (row \(row(of: sel.index)), wanted row \(wanted))") }
+                            if bad <= 5 { print("MISMATCH: \(count) windows, width \(Int(width)), scale \(sizeScale), list \(compact), tile \(i) \(key) -> \(sel.index) (row \(row(of: sel.index)), wanted row \(wanted))") }
                         }
                     }
                 }
@@ -323,6 +323,17 @@ enum OverlayPreview {
         let solid = make(all, selected: 1, caption: nil)
         png(of: solid.contentSnapshotView, over: true, to: folder.appendingPathComponent("switcher-reduce-transparency.png"))
         OverlayTheme.reduceTransparencyOverride = nil
+        // list mode (many windows), and the three tile sizes
+        let many = (0..<14).map { i -> WindowInfo in let w = all[i % all.count]; return WindowInfo(id: UInt32(300 + i), pid: w.pid, appName: w.appName, title: w.title, frame: .zero, icon: w.icon, placement: w.placement, spaceLabel: w.spaceLabel, bundleID: w.bundleID) }
+        let listPanel = SwitcherPanel()
+        listPanel.present(windows: many, layout: SwitcherLayout.plan(count: 14, screen: screen, compact: true), selected: 3, on: screen, show: false, thumbnail: { _ in nil })
+        png(of: listPanel.contentSnapshotView, over: true, to: folder.appendingPathComponent("switcher-list.png"))
+        for (name, scale) in [("small", CGFloat(0.8)), ("large", 1.2)] {
+            let p = SwitcherPanel()
+            let ws = Array(all.prefix(name == "small" ? 6 : 3))
+            p.present(windows: ws, layout: SwitcherLayout.plan(count: ws.count, screen: screen, sizeScale: scale), selected: 1, on: screen, show: false, thumbnail: { thumbs[$0] })
+            png(of: p.contentSnapshotView, over: true, to: folder.appendingPathComponent("switcher-\(name)-tiles.png"))
+        }
         // type to search: filtered results, and a search that matches nothing
         let hits = all.filter { WindowSearch.matches(query: "code", in: [$0.appName, $0.title, $0.spaceLabel ?? ""]) }
         let searching = SwitcherPanel()

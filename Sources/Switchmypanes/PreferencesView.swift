@@ -115,6 +115,17 @@ struct PreferencesView: View {
                     }
                     Text("Glass is the clearest look (real Liquid Glass on macOS 26); Frosted is in between; Dark is the heaviest and easiest to read over a busy desktop. Transparency fades only the glass: the tiles and text stay sharp. Applies the next time an overlay opens. If macOS's Accessibility option \"Reduce transparency\" is on, the overlays use the solid Dark look automatically.")
                         .font(.caption).foregroundStyle(.secondary)
+                    Picker("Tile size", selection: $settings.tileSize) {
+                        ForEach(TileSize.allCases, id: \.rawValue) { Text($0.rawValue.capitalized).tag($0.rawValue) }
+                    }
+                    .pickerStyle(.segmented)
+                    Picker("Compact list", selection: $settings.listMode) {
+                        Text("Automatic (more than \(OverlayDensity.autoThreshold) windows)").tag("auto")
+                        Text("Always").tag("always")
+                        Text("Never").tag("never")
+                    }
+                    Text("The list shows one row per window (icon, title, app) with no pictures, which fits many more windows on screen. Applies the next time the switcher opens.")
+                        .font(.caption).foregroundStyle(.secondary)
                     Toggle("Window switcher shortcut enabled", isOn: $settings.switcherEnabled)
                     Toggle("Include windows from other desktops", isOn: $settings.includeOtherDesktops)
                         .disabled(!settings.switcherEnabled || !spacesAvailable)

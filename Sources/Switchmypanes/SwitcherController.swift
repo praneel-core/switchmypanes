@@ -17,6 +17,8 @@ final class SwitcherController {
     private(set) var isPinned = false
     var isCapturingKeys: Bool { isActive && !isPinned }
     /// Set by the app: snap a window to a zone / hide an app from the switcher (the menu's actions).
+    /// Tile size and list-view preference (set from Preferences by the app).
+    var density: () -> (size: TileSize, list: ListPreference) = { (.medium, .auto) }
     var snapWindow: (WindowInfo, SnapZone) -> Bool = { _, _ in false }
     var excludeFromSwitcher: (WindowInfo) -> Void = { _ in }
     private var fullList: [WindowInfo] = []        // every window (most recently used first), before searching
@@ -63,6 +65,13 @@ final class SwitcherController {
         DispatchQueue.main.asyncAfter(deadline: .now() + showDelay, execute: work)
     }
 
+    /// Tiles or a compact list, at the size chosen in Preferences (a long list of windows switches to the list by itself).
+    private func makeLayout(count: Int, screen: NSScreen) -> SwitcherLayout {
+        let d = density()
+        return SwitcherLayout.plan(count: count, screen: screen, sizeScale: CGFloat(d.size.scale),
+                                   compact: OverlayDensity.usesList(count: count, preference: d.list))
+    }
+
     /// Applies the typed query to the full list, lays the result out, and (optionally) resets the highlight.
     private func rebuild(resetSelection: Bool) {
         let filtered = query.isEmpty ? fullList
@@ -70,7 +79,7 @@ final class SwitcherController {
         guard !filtered.isEmpty, let screen else {
             windows = []; columns = 1; selection = SwitcherSelection(count: 0); return
         }
-        let layout = SwitcherLayout.plan(count: filtered.count, screen: screen)
+        let layout = makeLayout(count: filtered.count, screen: screen)
         windows = filtered.count > layout.capacity ? Array(filtered.prefix(layout.capacity)) : filtered   // only on huge window counts
         columns = layout.columns
         guard resetSelection else { return }
@@ -145,16 +154,19 @@ final class SwitcherController {
     /// Draws the overlay for the current list of windows (when it first appears, after a window is closed, as you type).
     private func showPanel() {
         guard isActive, let screen, !debugSuppressPanel else { return }
+        var showsPictures = true
         if windows.isEmpty {
             panel.presentMessage("No windows match \u{201C}\(query)\u{201D}", query: query, on: screen)
         } else {
-            let layout = SwitcherLayout.plan(count: windows.count, screen: screen)
+            let layout = makeLayout(count: windows.count, screen: screen)
             columns = layout.columns
+            showsPictures = !layout.compact
             panel.present(windows: windows, layout: layout, selected: selection.index, on: screen, query: query.isEmpty ? nil : query,
                           thumbnail: { [thumbnails] in thumbnails.cached($0) })
         }
         guard !panelVisible else { return }       // thumbnails are only (re)captured when the overlay first appears
         panelVisible = true
+        guard showsPictures else { return }       // the compact list has no pictures to capture
         // Windows on other Spaces cannot be captured; they show their last cached picture, or the app icon.
         // (All windows, not just the shown ones, so a search finds windows that already have their picture.)
         thumbnails.refresh(windowIDs: fullList.filter(\.isOnCurrentSpace).map(\.id)) { [weak self] id, image in

@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Tile size (Small / Medium / Large) and a compact list view for the switcher: one row per window, no pictures, automatic above 12 windows (or always / never). Arrow-key navigation is verified against the drawn positions for every size and the list.
 - Right-click menu on a tile: switch, close, minimize, snap (left / right / maximize) and "hide this app from the switcher". Right-clicking pins the overlay open; actions that need the window on this desktop are greyed out for other desktops.
 - Type to search in the Option+Tab overlay: start typing and only windows whose app name or title contains your words stay (matching is in Core, tested). ⌫ edits the text, Esc clears it (a second Esc cancels). **Closing a window is now ⌘W** (Delete and W are typing keys); the ✕ still works. While the overlay is open the typed characters are read to search, never stored or logged.
 - Respects macOS's *Reduce transparency*: the overlays switch to the solid Dark look automatically (rule in Core, tested).

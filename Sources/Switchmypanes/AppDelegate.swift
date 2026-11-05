@@ -46,6 +46,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, KeyboardMonitorDelegat
         monitor.delegate = self
         monitor.isSuspended = { [settings] in settings.isRecordingShortcut }
         switcher.requiredModifierFlags = { [settings] in settings.switcherModifier.cgFlags }
+        switcher.density = { [settings] in (TileSize(rawValue: settings.tileSize) ?? .medium, ListPreference(rawValue: settings.listMode) ?? .auto) }
         switcher.snapWindow = { [weak self] info, zone in self?.snapper.snap(info, to: zone) ?? false }
         switcher.excludeFromSwitcher = { [settings] info in
             if let id = info.bundleID { settings.appExclusions = AppExclusions.hidingFromSwitcher(id, in: settings.appExclusions) }
