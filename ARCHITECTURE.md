@@ -123,7 +123,17 @@ Accessibility API is top-left; all logic uses top-left and converts once, in `Di
 
 ## Phase 3 plan
 
-Snap groups and shared-edge resizing (needs an AX observer for move/resize notifications), live thumbnails,
-per-app exclusions, Task View-style overview, Option+` per-app cycling, and the optional Cmd+Tab override
-(off by default; disable the native shortcut through the isolated private layer, restore on quit / next launch /
-pause; keep Cmd+Q and Cmd+H alive while open).
+- Snap groups and shared-edge resizing (needs an AX observer for move/resize notifications).
+- Per-app exclusions: apps the switcher ignores and/or snapping never moves.
+- Task View-style overview.
+- Live-updating thumbnails.
+- Optional small item: "all screens / current screen only" switcher setting.
+
+## Decisions
+
+- **Cmd+Tab is never overridden** (cancelled 2026-11-05). Swallowing it and disabling the native shortcut needs private
+  APIs that can leave the system shortcut disabled if the app crashes. Cmd+Tab and Cmd+` always belong to macOS; the
+  shortcut recorder refuses to assign them.
+- **No Option+` per-app cycling** (built, then dropped). macOS already cycles an app's windows with Cmd+`, and Windows'
+  Alt+Tab has no such mode, so it added a shortcut without adding capability. The code is preserved on the unmerged
+  branch `feature/per-app-cycling` if it is ever wanted.
