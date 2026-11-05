@@ -1,4 +1,5 @@
 import AppKit
+import SwitchmypanesCore
 
 /// How big the tiles are and how many fit on the screen.
 struct SwitcherLayout {
@@ -226,9 +227,9 @@ final class SwitcherPanel: NSPanel {
         glass.content.addSubview(ring)
         for (i, w) in windows.enumerated() {
             let row = i / layout.columns, col = i % layout.columns
-            // An incomplete last row is centred, which looks tidier than hugging the left edge.
-            let inRow = min(layout.columns, windows.count - row * layout.columns)
-            let rowInset = (gridWidth - (CGFloat(inRow) * tile.width + CGFloat(inRow - 1) * sp)) / 2
+            // An incomplete last row is centred. The rule lives in Core (`OverlayGrid`), shared with the arrow keys, so
+            // "directly below" on screen is exactly what Down selects.
+            let rowInset = CGFloat(OverlayGrid.rowOffset(row, count: windows.count, columns: layout.columns)) * (tile.width + sp)
             // Row 0 is at the top, but AppKit's origin is bottom-left.
             let origin = NSPoint(x: leftInset + rowInset + CGFloat(col) * (tile.width + sp),
                                  y: height - pad - header - tile.height - CGFloat(row) * (tile.height + sp))
@@ -293,6 +294,8 @@ final class SwitcherPanel: NSPanel {
 
     /// The panel's picture, for tests and previews (`--render-overlay`).
     var contentSnapshotView: NSView { glass.root }
+    /// Where each tile is drawn (tests: do the arrow keys agree with what is on screen?).
+    var debugTileFrames: [CGRect] { tiles.map(\.frame) }
 
     func dismiss() {
         orderOut(nil)

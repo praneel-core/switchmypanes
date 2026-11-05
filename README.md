@@ -41,7 +41,7 @@ All of these can be changed in Preferences (menu bar icon → Preferences).
 | Do this | To |
 |---|---|
 | **Option+Tab** (hold Option, tap Tab) | open the window switcher; release Option to switch |
-| Tab / Shift+Tab / arrow keys | move through the windows. ←/→ step through them (and wrap); ↑/↓ move between rows, and with a single row ↓ = next and ↑ = previous |
+| Tab / Shift+Tab / arrow keys | move through the windows. ←/→ step through them (and wrap); ↑/↓ go to the tile directly below / above (the nearest one when nothing is exactly there, e.g. at a corner of a short last row; they wrap), and with a single row ↓ = next and ↑ = previous |
 | Esc | cancel |
 | Delete or W | close the highlighted window |
 | **Control+Option+←/→** | snap to the left / right half |
@@ -136,6 +136,7 @@ Run the binary with a flag: `~/Applications/Switchmypanes.app/Contents/MacOS/Swi
 |---|---|---|
 | `--list-windows` | prints the windows the switcher would show, with desktop / minimized status and whether a preview could be captured; `--exclude=<bundle id>` tries an exclusion | none |
 | `--render-overlay <folder>` | draws the overlays and the Preferences window offscreen, with sample windows, into PNG files (the blur is approximated by a flat fill) | none |
+| `--selftest-arrows` | checks that Down / Up pick the tile that is really drawn below / above, for every window count and tile (offscreen) | none |
 | `--selftest-overlay` | opens the real overlay once per look (Glass / Frosted / Dark) and checks it comes up and goes away | the overlay flashes on screen three times, about a second each |
 | `--selftest-motion` | plays the snap animation once and checks it appears and then disappears completely | flashes a glowing rectangle on screen for about half a second |
 | `--selftest-linked` | links helper windows and drags the divider through Accessibility (normal apps, a stubborn app, slow apps, the hover behaviour, and a window covering the seam); prints PASS/FAIL | opens nearly invisible helper windows in the bottom-right corner for about a minute |

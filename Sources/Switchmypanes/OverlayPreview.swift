@@ -61,6 +61,46 @@ enum OverlayPreview {
         ]
     }
 
+    /// `--selftest-arrows`: for every window count and every tile, checks that Down / Up pick the tile that is really
+    /// drawn directly below / above (nearest by horizontal position), using the panel's real tile positions. Offscreen.
+    static func verifyArrowsMatchDrawing() -> Bool {
+        OverlayTheme.offscreenRender = true
+        let screen = NSScreen.screens.first ?? NSScreen.main!
+        let base = sampleWindows().map(\.0)
+        var checked = 0, bad = 0
+        for count in 2...16 {
+            let windows = (0..<count).map { i -> WindowInfo in var w = base[i % base.count]; w = WindowInfo(id: UInt32(100 + i), pid: w.pid, appName: w.appName, title: w.title, frame: .zero, icon: w.icon, placement: w.placement, spaceLabel: w.spaceLabel, bundleID: w.bundleID); return w }
+            for width in [CGFloat(1100), 1470, 1920] {
+                let layout = SwitcherLayout.plan(count: count, bounds: CGSize(width: width, height: 1000), widthFraction: 0.9, heightFraction: 0.85)
+                let panel = SwitcherPanel()
+                panel.present(windows: windows, layout: layout, selected: 0, on: screen, hints: [], show: false, thumbnail: { _ in nil })
+                let frames = panel.debugTileFrames
+                guard frames.count == count else { print("FAIL: drew \(frames.count) of \(count) tiles"); return false }
+                // rows by vertical position, top row first (AppKit y goes up)
+                let rowYs = Array(Set(frames.map { $0.minY.rounded() })).sorted(by: >)
+                func row(of i: Int) -> Int { rowYs.firstIndex(of: frames[i].minY.rounded())! }
+                guard rowYs.count > 1 else { continue }        // a single row: Down / Up are Next / Previous, tested in Core
+                for i in 0..<count {
+                    for key in [ArrowKey.down, .up] {
+                        var sel = SwitcherSelection(count: count); sel.select(i)
+                        sel.move(key, columns: layout.columns)
+                        let target = row(of: i) + (key == .down ? 1 : -1)
+                        let wanted = (target + rowYs.count) % rowYs.count
+                        let candidates = (0..<count).filter { row(of: $0) == wanted }
+                        let nearest = candidates.map { abs(frames[$0].midX - frames[i].midX) }.min() ?? 0
+                        checked += 1
+                        if row(of: sel.index) != wanted || abs(frames[sel.index].midX - frames[i].midX) > nearest + 0.5 {
+                            bad += 1
+                            if bad <= 5 { print("MISMATCH: \(count) windows, width \(Int(width)), tile \(i) \(key) -> \(sel.index) (row \(row(of: sel.index)), wanted row \(wanted))") }
+                        }
+                    }
+                }
+            }
+        }
+        print("checked \(checked) arrow moves against the drawn tile positions: \(bad) mismatches")
+        return bad == 0
+    }
+
     /// `--selftest-overlay`: opens the REAL overlay (real glass) once per look and checks it comes up and goes away.
     static func flashEachStyle() -> Bool {
         let screen = NSScreen.main ?? NSScreen.screens[0]
@@ -144,6 +184,12 @@ enum OverlayPreview {
         OverlayTheme.style = .glass
         let switcher = make(all, selected: 1, caption: nil, hints: .switcher(modifier: "⌥"))
         png(of: switcher.contentSnapshotView, over: true, to: folder.appendingPathComponent("switcher.png"))
+        // 8 windows in 5 columns: the last row of 3 is centred (the case where Down used to land one tile off)
+        let eight = (0..<8).map { i -> WindowInfo in let w = all[i % all.count]; return WindowInfo(id: UInt32(200 + i), pid: w.pid, appName: w.appName, title: w.title, frame: .zero, icon: w.icon, placement: w.placement, spaceLabel: w.spaceLabel, bundleID: w.bundleID) }
+        let eightThumbs = Dictionary(uniqueKeysWithValues: eight.enumerated().compactMap { i, w in thumbs[all[i % all.count].id].map { (w.id, $0) } })
+        let eightPanel = SwitcherPanel()
+        eightPanel.present(windows: eight, layout: SwitcherLayout.plan(count: 8, screen: screen), selected: 2, on: screen, hints: .switcher(modifier: "⌥"), show: false, thumbnail: { eightThumbs[$0] })
+        png(of: eightPanel.contentSnapshotView, over: true, to: folder.appendingPathComponent("switcher-8-windows.png"))
         let few = make(Array(all.prefix(3)), selected: 1, caption: nil, hints: .switcher(modifier: "⌥"))
         png(of: few.contentSnapshotView, over: true, to: folder.appendingPathComponent("switcher-3-windows.png"))
         let assist = make(Array(all.prefix(4)), selected: 0, caption: "Snap Assist: pick a window for the empty area", hints: .assist,

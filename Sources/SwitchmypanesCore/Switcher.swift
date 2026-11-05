@@ -38,6 +38,27 @@ public struct MRUList<ID: Hashable> {
     }
 }
 
+/// How the overlay lays its tiles out in a grid: full rows, and an incomplete LAST row centred under them. Both the
+/// drawing code and the arrow-key navigation use this one definition, so they can never disagree about what is "below".
+public enum OverlayGrid {
+    public static func rows(count: Int, columns: Int) -> Int { count <= 0 ? 0 : (count + max(1, columns) - 1) / max(1, columns) }
+
+    public static func itemsInRow(_ row: Int, count: Int, columns: Int) -> Int {
+        max(0, min(max(1, columns), count - row * max(1, columns)))
+    }
+
+    /// How far the row is shifted right of the left edge, in tile widths (a full row is 0; a short last row is centred).
+    public static func rowOffset(_ row: Int, count: Int, columns: Int) -> Double {
+        Double(max(1, columns) - itemsInRow(row, count: count, columns: columns)) / 2
+    }
+
+    /// Horizontal position of a tile, in tile widths from the left edge of the grid.
+    public static func x(of index: Int, count: Int, columns: Int) -> Double {
+        let cols = max(1, columns)
+        return rowOffset(index / cols, count: count, columns: cols) + Double(index % cols)
+    }
+}
+
 /// Selection state of the Alt-Tab overlay.
 public struct SwitcherSelection: Equatable {
     public private(set) var count: Int
@@ -65,28 +86,28 @@ public struct SwitcherSelection: Equatable {
     /// Arrow keys on a grid with `columns` columns. Every arrow always does something sensible:
     /// - Left / Right step through the windows and wrap around, like Tab.
     /// - With a single row, Down means "next" and Up means "previous" (there is no row to move to).
-    /// - With several rows, Down / Up move one row, staying in the same column; past the last (first) row they wrap to the
-    ///   first (last) row. An incomplete last row is handled: you land on its last window.
+    /// - With several rows, Down / Up go to the tile that is visually directly below / above (the same horizontal position,
+    ///   which matters because a short last row is centred). When nothing is exactly there, the nearest tile in that row is
+    ///   used. Past the last (first) row they wrap to the first (last) row.
     public mutating func move(_ key: ArrowKey, columns: Int) {
         guard count > 0 else { return }
         let cols = max(1, columns)
-        let rows = (count + cols - 1) / cols
+        let rows = OverlayGrid.rows(count: count, columns: cols)
         switch key {
         case .left: previous()
         case .right: next()
-        case .down:
-            if rows == 1 { next(); return }
+        case .down, .up:
+            if rows == 1 { if key == .down { next() } else { previous() }; return }
             let row = index / cols
-            if row == rows - 1 { index = index % cols }                    // from the last row: wrap to the top, same column
-            else { index = min(index + cols, count - 1) }                  // otherwise one row down (clamped on a short last row)
-        case .up:
-            if rows == 1 { previous(); return }
-            if index - cols >= 0 { index -= cols }
-            else {                                                         // from the top row: wrap to the bottom, same column
-                var bottom = index + (rows - 1) * cols
-                while bottom >= count { bottom -= cols }
-                index = bottom
+            let target = key == .down ? (row + 1) % rows : (row - 1 + rows) % rows
+            let here = OverlayGrid.x(of: index, count: count, columns: cols)
+            let offset = OverlayGrid.rowOffset(target, count: count, columns: cols)
+            var best = 0, bestDistance = Double.greatestFiniteMagnitude
+            for c in 0..<OverlayGrid.itemsInRow(target, count: count, columns: cols) {
+                let d = abs(offset + Double(c) - here)
+                if d < bestDistance - 0.0001 { best = c; bestDistance = d }          // ties go to the left
             }
+            index = target * cols + best
         }
     }
 }

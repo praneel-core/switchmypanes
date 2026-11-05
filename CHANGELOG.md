@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Down / Up in the overlay now go to the tile directly below / above (the nearest one when nothing is exactly there), which matters because a short last row is centred. The grid rule is shared by the drawing code and the navigation (`OverlayGrid`), and `--selftest-arrows` checks every move against the drawn positions.
 - The divider line no longer floats over a window that is not in its group: it stays hidden whenever another window covers the seam.
 - Overlay transparency: three looks (Glass, Frosted, Dark) in Preferences; Glass (default) is much clearer, using real Liquid Glass on macOS 26 and soft text shadows for legibility.
 - New overlay look for the window switcher, Snap Assist and Snap Layouts: glass panels, a highlight that slides between tiles, a keyboard-hint bar, colour-coded tags, a centred last row, and a quick fade-in.
