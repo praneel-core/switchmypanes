@@ -280,5 +280,24 @@ do {
     eq(kd(6, .option, picker: true), .swallow, "Option+Z inside the picker does not reopen it")
 }
 
+section("Snap Assist")
+do {
+    eq(SnapEngine.assistTarget(afterSnappingTo: .left), .right, "left half leaves the right half")
+    eq(SnapEngine.assistTarget(afterSnappingTo: .right), .left, "right half leaves the left half")
+    eq(SnapEngine.assistTarget(afterSnappingTo: .maximize), nil, "maximize leaves nothing")
+    eq(SnapEngine.assistTarget(afterSnappingTo: .topLeft), nil, "quarters: no assist")
+    let cfg = ShortcutConfig()
+    func a(_ code: Int64, _ f: ShortcutModifiers = []) -> KeyAction {
+        KeyClassifier.classifyKeyDown(keyCode: code, flags: f, isRepeat: false, switcherActive: false,
+                                      pickerActive: true, assistMode: true, config: cfg)
+    }
+    eq(a(53), .pickerCancel, "Esc closes"); eq(a(36), .pickerConfirm, "Return places")
+    eq(a(124), .pickerMove(.right), "plain arrow moves"); eq(a(48, .shift), .pickerMove(.left), "Shift+Tab moves back")
+    eq(a(126, [.control, .option]), .pickerDismiss, "a snap shortcut closes Assist, then snaps")
+    eq(a(0), .pickerDismiss, "typing closes Assist and still types")
+    eq(a(12, .command), .passThrough, "Cmd+Q untouched")
+    eq(a(18), .pickerDismiss, "digits do not pick in Assist")
+}
+
 print("\n\(total - failures)/\(total) checks passed")
 exit(failures == 0 ? 0 : 1)

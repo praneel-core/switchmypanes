@@ -55,6 +55,18 @@ public enum SnapEngine {
         return nil
     }
 
+    // MARK: Snap Assist
+
+    /// After a window is snapped to `zone`, which zone is left empty for Snap Assist to offer?
+    /// Halves only: a half-screen snap leaves exactly one obvious empty half.
+    public static func assistTarget(afterSnappingTo zone: SnapZone) -> SnapZone? {
+        switch zone {
+        case .left: return .right
+        case .right: return .left
+        default: return nil
+        }
+    }
+
     // MARK: Drag to edge
 
     /// Which zone a dragged window would snap to, from the cursor position (top-left coordinates).

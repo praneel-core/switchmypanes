@@ -13,6 +13,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, KeyboardMonitorDelegat
     private lazy var snapper = SnapController(settings: settings, ids: ids)
     private lazy var picker = LayoutPickerController(inventory: inventory, thumbnails: thumbnails, activator: activator,
                                                       snapper: snapper, settings: settings, ids: ids)
+    private lazy var assist = SnapAssistController(inventory: inventory, thumbnails: thumbnails, activator: activator,
+                                                    snapper: snapper, settings: settings, ids: ids)
     private lazy var dragSnapper = DragSnapController(settings: settings, ids: ids, snapper: snapper)
     private let monitor = KeyboardMonitor()
     private lazy var statusItem = StatusItemController(settings: settings)
@@ -35,6 +37,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, KeyboardMonitorDelegat
         monitor.configProvider = { [settings] in settings.config }
         inventory.startTracking()
         dragSnapper.start()
+        snapper.onBeforeSnap = { [weak self] in self?.assist.cancel() }
+        snapper.onSnapped = { [weak self] zone, display, pid, id, frame in
+            self?.assist.offer(afterSnapTo: zone, on: display, pid: pid, windowID: id, snappedFrame: frame)
+        }
 
         if !monitor.start() || !PermissionManager.current().shortcutsReady {
             onboarding.show()
@@ -49,6 +55,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, KeyboardMonitorDelegat
     func applicationWillTerminate(_ notification: Notification) {
         switcher.cancel()
         picker.cancel()
+        assist.cancel()
         monitor.stop()
         dragSnapper.stop()
         inventory.stopTracking()
@@ -61,7 +68,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, KeyboardMonitorDelegat
     private func setPaused(_ paused: Bool) {
         settings.paused = paused
         monitor.isPaused = paused
-        if paused { switcher.cancel(); picker.cancel(); dragSnapper.reset() }
+        if paused { switcher.cancel(); picker.cancel(); assist.cancel(); dragSnapper.reset() }
     }
 
     private func showPreferences() {
@@ -93,7 +100,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, KeyboardMonitorDelegat
     // MARK: KeyboardMonitorDelegate
 
     var switcherActive: Bool { switcher.isActive }
-    var pickerActive: Bool { picker.isActive }
+    var pickerActive: Bool { picker.isActive || assist.isActive }
+    var pickerAssistMode: Bool { assist.isActive }
 
     func keyboardMonitor(_ monitor: KeyboardMonitor, perform action: KeyAction) {
         switch action {
@@ -107,11 +115,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, KeyboardMonitorDelegat
             // Run after the tap callback returns, so a slow app can never make macOS disable our tap.
             DispatchQueue.main.async { [snapper] in snapper.handle(key, moveToDisplay: moveToDisplay) }
         case .layoutsOpen: picker.begin()
-        case .pickerMove(let key): picker.move(key)
+        case .pickerMove(let key): if assist.isActive { assist.move(key) } else { picker.move(key) }
         case .pickerChoose(let n): picker.choose(number: n)
-        case .pickerConfirm: picker.confirm()
+        case .pickerConfirm: if assist.isActive { assist.confirm() } else { picker.confirm() }
         case .pickerSkip: picker.skip()
-        case .pickerCancel: picker.cancel()
+        case .pickerCancel: assist.cancel(); picker.cancel()
+        case .pickerDismiss: break    // resolved inside the keyboard monitor
         case .passThrough, .swallow: break
         }
     }

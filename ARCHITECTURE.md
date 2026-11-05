@@ -27,6 +27,7 @@ Sources/
     WindowActivator.swift              raise + focus a window
     SnapController.swift, WindowMover.swift           keyboard snapping; place() is shared by drag + layouts
     DragSnapController.swift, ZonePreviewOverlay.swift  drag-to-edge with preview
+    SnapAssistController.swift                         Snap Assist (empty half after a half-snap)
     LayoutPickerController.swift, LayoutChoicePanel.swift  Snap Layouts (Option+Z), reuses SwitcherPanel for the window step
     DisplayProvider.swift              the ONLY NSScreen -> top-left coordinate conversion
     AX.swift                           small Accessibility helpers
@@ -106,7 +107,7 @@ Accessibility API is top-left; all logic uses top-left and converts once, in `Di
 ## Phase 2 plan (slots into the above)
 
 - DONE: drag-to-edge (`DragSnapController`, `ZonePreviewOverlay`) and Snap Layouts (`LayoutPickerController`; modal keys are classified in `KeyClassifier` with a `pickerActive` flag; safety nets: outside click, 3-minute timeout, tap-disabled, pause and quit all cancel it).
-- Snap Assist: `SnapAssistController`. After a snap, offer the remaining windows for the free zone, reusing `SwitcherPanel` + `place()` like the layout picker.
+- DONE: Snap Assist (`SnapAssistController`): `SnapController.onSnapped` -> 0.25 s delay -> `SwitcherPanel` centred on the empty half; `KeyClassifier` assist mode (`pickerDismiss` closes it and re-classifies the same key). Halves only; quarters are a possible follow-up.
 - Switcher: close-window X / Delete key (AX close button), minimized windows (AX list + `kAXMinimized`), other Spaces via a private `SpaceProvider`, all-screens / current-screen option, live thumbnails.
 - Preferences: shortcut recorder, launch at login (`SMAppService.mainApp`).
 

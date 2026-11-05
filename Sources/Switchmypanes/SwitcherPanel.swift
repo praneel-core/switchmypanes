@@ -13,8 +13,13 @@ struct SwitcherLayout {
     var tile: NSSize { NSSize(width: Self.baseTile.width * scale, height: Self.baseTile.height * scale) }
 
     static func plan(count: Int, screen: NSScreen) -> SwitcherLayout {
-        let maxW = screen.visibleFrame.width * 0.9 - 2 * padding
-        let maxH = screen.visibleFrame.height * 0.85 - 2 * padding
+        plan(count: count, bounds: screen.visibleFrame.size, widthFraction: 0.9, heightFraction: 0.85)
+    }
+
+    /// Layout that fits inside `bounds` (a screen, or just the empty half for Snap Assist).
+    static func plan(count: Int, bounds: CGSize, widthFraction: CGFloat, heightFraction: CGFloat) -> SwitcherLayout {
+        let maxW = bounds.width * widthFraction - 2 * padding
+        let maxH = bounds.height * heightFraction - 2 * padding - 30   // 30 = caption line
         var best = SwitcherLayout(scale: 0.5, columns: 1, rows: 1, capacity: 1)
         for scale in [1.0, 0.85, 0.7, 0.55, 0.45] as [CGFloat] {
             let tw = baseTile.width * scale, th = baseTile.height * scale
@@ -132,7 +137,7 @@ final class SwitcherPanel: NSPanel {
     }
 
     func present(windows: [WindowInfo], layout: SwitcherLayout, selected: Int, on screen: NSScreen,
-                 caption: String? = nil, thumbnail: (CGWindowID) -> NSImage?) {
+                 caption: String? = nil, center: NSPoint? = nil, thumbnail: (CGWindowID) -> NSImage?) {
         tiles.forEach { $0.removeFromSuperview() }
         tiles.removeAll()
         captionLabel?.removeFromSuperview(); captionLabel = nil
@@ -166,7 +171,8 @@ final class SwitcherPanel: NSPanel {
             captionLabel = l
         }
         let vf = screen.visibleFrame
-        setFrame(NSRect(x: vf.midX - size.width / 2, y: vf.midY - size.height / 2, width: size.width, height: size.height), display: true)
+        let c = center ?? NSPoint(x: vf.midX, y: vf.midY)
+        setFrame(NSRect(x: c.x - size.width / 2, y: c.y - size.height / 2, width: size.width, height: size.height), display: true)
         orderFrontRegardless()
     }
 

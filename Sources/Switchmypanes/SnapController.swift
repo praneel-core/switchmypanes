@@ -11,9 +11,15 @@ final class SnapController {
     private let ids: WindowIDProvider
     private var restore = RestoreMemory<WindowKey>()
 
+    /// Called at the start of every snap attempt (lets Snap Assist close itself / cancel a pending offer).
+    var onBeforeSnap: () -> Void = {}
+    /// Called after a window was snapped to a zone: (zone, display, pid, window id if known, the frame it was given).
+    var onSnapped: (SnapZone, DisplayInfo, pid_t, CGWindowID?, CGRect) -> Void = { _, _, _, _, _ in }
+
     init(settings: SettingsStore, ids: WindowIDProvider) { self.settings = settings; self.ids = ids }
 
     func handle(_ key: ArrowKey, moveToDisplay: Bool) {
+        onBeforeSnap()
         guard AXIsProcessTrusted(),
               let app = NSWorkspace.shared.frontmostApplication, app.processIdentifier != getpid() else { return }
         let appEl = AX.app(pid: app.processIdentifier)
@@ -39,7 +45,9 @@ final class SnapController {
             break
         case .snap(let zone):
             restore.willSnap(k, currentFrame: frame, wasSnapped: state != nil)
-            WindowMover.apply(SnapEngine.frame(for: zone, in: display.visibleFrame, gap: gap), to: window, bounds: display.visibleFrame)
+            let target = SnapEngine.frame(for: zone, in: display.visibleFrame, gap: gap)
+            WindowMover.apply(target, to: window, bounds: display.visibleFrame)
+            onSnapped(zone, display, app.processIdentifier, ids.windowID(of: window), target)
         case .restore:
             let target = restore.take(k) ?? SnapEngine.defaultRestoreFrame(in: display.visibleFrame)
             let bounds = layout.display(containing: target)?.visibleFrame ?? display.visibleFrame
@@ -64,7 +72,9 @@ final class SnapController {
 
     /// Called when a window was dragged to an edge.
     func snapDragged(window: AXUIElement, pid: pid_t, to zone: SnapZone, on display: DisplayInfo, preDragFrame: CGRect) {
-        place(window: window, pid: pid, target: SnapEngine.frame(for: zone, in: display.visibleFrame, gap: CGFloat(settings.gap)),
-              on: display, preFrame: preDragFrame)
+        onBeforeSnap()
+        let target = SnapEngine.frame(for: zone, in: display.visibleFrame, gap: CGFloat(settings.gap))
+        place(window: window, pid: pid, target: target, on: display, preFrame: preDragFrame)
+        onSnapped(zone, display, pid, ids.windowID(of: window), target)
     }
 }

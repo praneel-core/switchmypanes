@@ -15,6 +15,9 @@ Free, local only: no accounts, no network calls, no analytics. Phase 1 of 3: see
   arrow keys + Return, the digits 1–9, or the mouse. Then, for each area in turn (outlined on screen), pick a window;
   it moves there immediately. Space skips an area, Esc stops (windows already placed stay). Note that Option+Z
   normally types “Ω”; turn this off in Preferences if you need it.
+- **Snap Assist**: after a window is snapped to the left or right half (keyboard or drag), thumbnails of your other
+  windows appear over the empty half. Click one, or use the arrows + Return, and it fills the space. Esc, a click
+  elsewhere, or any other key closes it (and that key then does its normal job, so chaining snaps works).
 - **Snapping** with **Control+Option+Arrow**: Left / Right = half, Up = maximize, Down = restore (or minimize if
   not snapped). Left then Up = top-left quarter, etc. Add **Shift** to move the window to another display.
   The modifiers and a gap between windows are configurable in Preferences.
@@ -78,4 +81,5 @@ No automated tests can click macOS permission dialogs; see the manual test check
 11. Try an app with a minimum size (e.g. System Settings) in a quarter: it should sit in the right corner, not off-screen.
 12. Drag a window by its title bar to each edge and corner: preview appears and follows the cursor; release snaps; Control+Option+Down then restores the old size. With two displays, dragging across the middle must NOT snap.
 13. Option+Z: pick "Three columns" (press 3): the first area is outlined, windows are listed with the front one selected. Place three windows with Return; each should move and come to the front. Try Space to skip, Esc halfway, and clicking outside the picker (it should close). Set a gap in Preferences and re-run: gaps should be even.
-14. Menu bar: Pause stops all shortcuts; Resume restores; Quit removes the icon.
+14. Snap Assist: snap a window Left (Control+Option+Left): after a moment, other windows appear over the right half with the first selected. Return fills it. Try: click a tile; Esc; clicking elsewhere; pressing Control+Option+Up right after the snap (it should close Assist AND make the top-left quarter, with no flash if you press quickly). Repeat with a drag to the right edge.
+15. Menu bar: Pause stops all shortcuts; Resume restores; Quit removes the icon.

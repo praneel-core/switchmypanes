@@ -40,6 +40,7 @@ public enum KeyAction: Equatable {
     case pickerMove(ArrowKey)
     case pickerChoose(Int)                 // digit key, 1...9
     case pickerConfirm, pickerSkip, pickerCancel
+    case pickerDismiss                     // Snap Assist only: close it, then treat this key press normally
 }
 
 /// Decides what a key press means. The event tap only ever acts on what this returns,
@@ -65,7 +66,21 @@ public enum KeyClassifier {
 
     public static func classifyKeyDown(keyCode: Int64, flags: ShortcutModifiers, isRepeat: Bool,
                                        switcherActive: Bool, pickerActive: Bool = false,
-                                       config: ShortcutConfig) -> KeyAction {
+                                       assistMode: Bool = false, config: ShortcutConfig) -> KeyAction {
+        if pickerActive && assistMode {
+            // Snap Assist is a light overlay: its own few keys work, ANY other key closes it and then does
+            // its normal job (so Control+Option+Up right after a snap still snaps; typing still types).
+            if flags.contains(.command) { return .passThrough }
+            if flags.isEmpty || flags == .shift {
+                switch keyCode {
+                case escape: return .pickerCancel
+                case returnKey, enter: return .pickerConfirm
+                case tab: return .pickerMove(flags.contains(.shift) ? .left : .right)
+                default: if let a = arrow(for: keyCode) { return .pickerMove(a) }
+                }
+            }
+            return .pickerDismiss
+        }
         if pickerActive {
             // The picker is modal: it owns the keyboard, so stray typing never reaches the app behind it.
             // Command shortcuts (Cmd+Q, Cmd+H, ...) are left alone.

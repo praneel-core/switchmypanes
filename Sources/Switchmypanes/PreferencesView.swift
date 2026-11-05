@@ -18,6 +18,8 @@ struct PreferencesView: View {
             }
             Section("Snapping") {
                 Toggle("Keyboard snapping", isOn: $settings.snapEnabled)
+                Toggle("Snap Assist: after snapping to a half, offer other windows for the empty half", isOn: $settings.snapAssistEnabled)
+                    .disabled(!settings.snapEnabled)
                 Toggle("Drag a window to a screen edge or corner to snap it", isOn: $settings.dragSnapEnabled)
                     .disabled(!settings.snapEnabled)
                 HStack {

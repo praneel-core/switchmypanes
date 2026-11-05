@@ -6,6 +6,7 @@ import SwitchmypanesCore
 protocol KeyboardMonitorDelegate: AnyObject {
     var switcherActive: Bool { get }
     var pickerActive: Bool { get }
+    var pickerAssistMode: Bool { get }
     func keyboardMonitor(_ monitor: KeyboardMonitor, perform action: KeyAction)
 }
 
@@ -82,9 +83,16 @@ final class KeyboardMonitor {
             if isPaused { return pass }
             let code = event.getIntegerValueField(.keyboardEventKeycode)
             let isRepeat = event.getIntegerValueField(.keyboardEventAutorepeat) != 0
-            let action = KeyClassifier.classifyKeyDown(keyCode: code, flags: Self.modifiers(event.flags), isRepeat: isRepeat,
-                                                       switcherActive: delegate.switcherActive, pickerActive: delegate.pickerActive,
-                                                       config: configProvider())
+            func classify() -> KeyAction {
+                KeyClassifier.classifyKeyDown(keyCode: code, flags: Self.modifiers(event.flags), isRepeat: isRepeat,
+                                              switcherActive: delegate.switcherActive, pickerActive: delegate.pickerActive,
+                                              assistMode: delegate.pickerAssistMode, config: configProvider())
+            }
+            var action = classify()
+            if action == .pickerDismiss {            // Snap Assist: close it, then handle the key as if it had never been open
+                delegate.keyboardMonitor(self, perform: .pickerCancel)
+                action = classify()
+            }
             switch action {
             case .passThrough:
                 return pass
