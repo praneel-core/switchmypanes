@@ -106,6 +106,8 @@ final class DividerOverlay {
     var onBegin: (Int) -> Void = { _ in }
     var onMove: (Int, CGFloat) -> Void = { _, _ in }
     var onEnd: () -> Void = {}
+    /// Asked right before a line fades in: false if another window now covers that seam.
+    var canReveal: (Int) -> Bool = { _ in true }
     private let hitWidth: CGFloat = 12
     private let hideDelay: TimeInterval = 0.35
 
@@ -181,7 +183,7 @@ final class DividerOverlay {
         for (i, d) in dividers.enumerated() where i < panels.count && i != draggingIndex {
             if revealed[i] {
                 if d.keepZone().contains(p) { cancelHide(i) } else { scheduleHide(i) }
-            } else if d.revealZone().contains(p) {
+            } else if d.revealZone().contains(p), canReveal(i) {
                 reveal(i)
             }
         }

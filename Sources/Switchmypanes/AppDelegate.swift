@@ -54,6 +54,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, KeyboardMonitorDelegat
             guard let self, self.settings.switcherEnabled, !self.switcher.isActive, !self.picker.isActive else { return }
             self.previewKeeper.frontWindowChanged(left: left, arrived: arrived)
         }
+        // A divider line must never float over a window that is not in its group: re-check when the front window changes.
+        let previous = inventory.onFrontWindowChanged
+        inventory.onFrontWindowChanged = { [weak self] left, arrived in
+            previous?(left, arrived)
+            self?.linked.windowsChanged()
+        }
+        NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.activeSpaceDidChangeNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.linked.windowsChanged() }
+        }
         inventory.startTracking()
         dragSnapper.start()
         picker.onGroupPlaced = { [weak self] placed, gap, bounds in self?.linked.register(placed, gap: gap, bounds: bounds) }

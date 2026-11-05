@@ -54,8 +54,6 @@ final class LinkedGroupController {
     /// Tests can switch notifications off to prove the mouse-drag polling works on its own.
     var useNotifications = true
     private var mouseMonitors: [Any] = []
-    /// Diagnostics: show the lines even when the group's apps are not in front.
-    var forceShowDividers = false
     /// Diagnostics: feed the overlay a cursor position (top-left coordinates); how many lines are currently revealed.
     func debugHover(at p: CGPoint) { overlay.cursorMoved(at: p) }
     var debugRevealedLines: Int { overlay.debugRevealedCount }
@@ -70,6 +68,7 @@ final class LinkedGroupController {
         overlay.onBegin = { [weak self] i in self?.dividerBegan(i) }
         overlay.onMove = { [weak self] i, pos in self?.dividerMoved(i, to: pos) }
         overlay.onEnd = { [weak self] in self?.dividerEnded() }
+        overlay.canReveal = { [weak self] i in self?.stillUncovered(i) ?? false }
         // Show the lines only while you are working in one of the linked windows' apps; otherwise another app's
         // window may be covering them and a floating line would look out of place.
         activationObserver = NSWorkspace.shared.notificationCenter.addObserver(
@@ -140,21 +139,63 @@ final class LinkedGroupController {
 
     // MARK: the visible divider lines (and dragging them)
 
-    /// Draws a line for every divider of every group, at the windows' CURRENT positions.
+    /// Draws a line for every divider of every group, at the windows' CURRENT positions, but only where the seam is really
+    /// visible: if any other window covers it (even another window of the same app) the line stays hidden, otherwise it
+    /// would float over a window that is not part of the group.
     private func refreshDividers() {
         guard settings.linkedResizeEnabled, !settings.paused, !groups.isEmpty else { overlay.removeAll(); shown = []; return }
-        let front = NSWorkspace.shared.frontmostApplication?.processIdentifier
         var items: [(group: Group, divider: Divider)] = []
+        let stack = dragging == nil ? windowStack() : []             // (while you drag the line itself, skip the check: it is at hand)
         for g in groups {
-            // visible when you are in one of the group's apps (or are dragging the line itself, when our own app is in front)
-            guard forceShowDividers || front == getpid() || g.members.values.contains(where: { $0.pid == front }) else { continue }
             let frames = g.members.mapValues(\.frame)
-            items += LinkedResize.dividers(members: frames, gap: g.gap).map { (g, $0) }
+            for d in LinkedResize.dividers(members: frames, gap: g.gap) where dragging != nil || isUncovered(d, in: g, stack: stack) {
+                items.append((g, d))
+            }
         }
         shown = items
         log("showing \(items.count) divider line(s)")
         overlay.show(items.map(\.divider))
     }
+
+    /// Diagnostics: a made-up window stack (front to back) to use instead of the real one, so tests do not depend on what
+    /// happens to be on screen.
+    var debugWindowStack: (() -> [(id: CGWindowID, bounds: CGRect)])?
+
+    /// The on-screen windows, front to back: (window ID, bounds in top-left coordinates).
+    private func windowStack() -> [(id: CGWindowID, bounds: CGRect)] {
+        if let fake = debugWindowStack { return fake() }
+        guard let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID)
+                as? [[String: Any]] else { return [] }
+        var out: [(CGWindowID, CGRect)] = []
+        for w in list where (w[kCGWindowLayer as String] as? Int) == 0 {
+            guard let n = (w[kCGWindowNumber as String] as? NSNumber)?.uint32Value,
+                  let bd = w[kCGWindowBounds as String] as? NSDictionary,
+                  let r = CGRect(dictionaryRepresentation: bd as CFDictionary) else { continue }
+            out.append((n, r))
+        }
+        return out
+    }
+
+    private func isUncovered(_ d: Divider, in g: Group, stack: [(id: CGWindowID, bounds: CGRect)]) -> Bool {
+        let probes = d.probePoints(gap: g.gap)
+        func top(_ p: CGPoint) -> CGWindowID? { stack.first { $0.bounds.contains(p) }?.id }
+        return d.isUncovered(topBefore: top(probes.before), topAfter: top(probes.after),
+                             beforeWindows: Set(d.before.compactMap { g.members[$0]?.windowID }),
+                             afterWindows: Set(d.after.compactMap { g.members[$0]?.windowID }))
+    }
+
+    /// Asked by the overlay right before it fades a line in: is that seam still visible?
+    private func stillUncovered(_ index: Int) -> Bool {
+        guard index < shown.count else { return false }
+        let item = shown[index]
+        return dragging != nil || isUncovered(item.divider, in: item.group, stack: windowStack())
+    }
+
+    /// Call when what is in front may have changed (another window raised, another app, another desktop).
+    func windowsChanged() { if !groups.isEmpty { refreshDividers() } }
+
+    /// Diagnostics: how many divider lines are currently allowed to show (not covered by another window).
+    var debugVisibleDividerCount: Int { shown.count }
 
     /// Diagnostics: performs the same steps as dragging the first divider with the mouse (self-test only).
     func debugDragFirstDivider(through positions: [CGFloat], pause: () -> Void) {

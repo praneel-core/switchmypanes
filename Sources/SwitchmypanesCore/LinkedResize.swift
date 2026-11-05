@@ -118,6 +118,23 @@ public extension Divider {
             : CGRect(x: lo, y: position - across, width: hi - lo, height: across * 2)
     }
 
+    /// The two spots to look at to see what is actually on screen at this seam: the middle of the line, just inside the
+    /// window on each side (`gap` is the space between the windows).
+    func probePoints(gap: CGFloat = 0) -> (before: CGPoint, after: CGPoint) {
+        let mid = (start + end) / 2, off = gap / 2 + 6
+        return axis == .vertical
+            ? (CGPoint(x: position - off, y: mid), CGPoint(x: position + off, y: mid))
+            : (CGPoint(x: mid, y: position - off), CGPoint(x: mid, y: position + off))
+    }
+
+    /// A divider may only be shown when the seam is really visible: the topmost window at each probe point must be one of
+    /// the group's windows on that side. If any other window covers the seam (even another window of the same app), the
+    /// line would float over a window that is not part of the group, so it must stay hidden.
+    func isUncovered<ID: Hashable>(topBefore: ID?, topAfter: ID?, beforeWindows: Set<ID>, afterWindows: Set<ID>) -> Bool {
+        guard let b = topBefore, let a = topAfter else { return false }
+        return beforeWindows.contains(b) && afterWindows.contains(a)
+    }
+
     /// While the cursor stays inside this (the whole line plus a margin) an already revealed divider stays visible.
     func keepZone(across: CGFloat = 14, margin: CGFloat = 6) -> CGRect {
         axis == .vertical

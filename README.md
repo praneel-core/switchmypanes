@@ -138,7 +138,7 @@ Run the binary with a flag: `~/Applications/Switchmypanes.app/Contents/MacOS/Swi
 | `--render-overlay <folder>` | draws the overlays and the Preferences window offscreen, with sample windows, into PNG files (the blur is approximated by a flat fill) | none |
 | `--selftest-overlay` | opens the real overlay once per look (Glass / Frosted / Dark) and checks it comes up and goes away | the overlay flashes on screen three times, about a second each |
 | `--selftest-motion` | plays the snap animation once and checks it appears and then disappears completely | flashes a glowing rectangle on screen for about half a second |
-| `--selftest-linked` | links helper windows and drags the divider through Accessibility (normal apps, a stubborn app, slow apps, and the hover behaviour); prints PASS/FAIL | opens nearly invisible helper windows in the bottom-right corner for about a minute |
+| `--selftest-linked` | links helper windows and drags the divider through Accessibility (normal apps, a stubborn app, slow apps, the hover behaviour, and a window covering the seam); prints PASS/FAIL | opens nearly invisible helper windows in the bottom-right corner for about a minute |
 | `--selftest-spaces` | checks going to a window on another desktop whose app also has a window here | **switches your desktop and back**; says SKIPPED if you have no such setup |
 | `SWITCHMYPANES_DEBUG=1` (environment variable) | logs what linked resizing is doing | none |
 

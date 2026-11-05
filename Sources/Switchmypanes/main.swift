@@ -209,8 +209,8 @@ if CommandLine.arguments.contains("--selftest-linked") {
                 line("FAIL: could not reach the helper windows through Accessibility"); return false
             }
             let controller = LinkedGroupController(settings: SettingsStore.shared)
-            controller.forceShowDividers = true
             controller.debugLog = { line("   [linked] \($0)") }
+            controller.debugWindowStack = { [(idb, AX.frame(b) ?? .zero), (ida, AX.frame(a) ?? .zero)] }    // the group's own windows are on top
             WindowMover.apply(CGRect(x: base.minX, y: base.minY, width: 300, height: 160), to: a, bounds: visible)
             WindowMover.apply(CGRect(x: base.minX + 300, y: base.minY, width: 300, height: 160), to: b, bounds: visible)
             spin(0.4)
@@ -256,8 +256,8 @@ if CommandLine.arguments.contains("--selftest-linked") {
                 line("FAIL: could not reach the helper windows through Accessibility"); return false
             }
             let controller = LinkedGroupController(settings: SettingsStore.shared)
-            controller.forceShowDividers = true
             controller.debugLog = { line("   [linked] \($0)") }
+            controller.debugWindowStack = { [(idb, AX.frame(b) ?? .zero), (ida, AX.frame(a) ?? .zero)] }    // the group's own windows are on top
             WindowMover.apply(CGRect(x: base.minX, y: base.minY, width: 300, height: 160), to: a, bounds: visible)
             WindowMover.apply(CGRect(x: base.minX + 300, y: base.minY, width: 300, height: 160), to: b, bounds: visible)
             spin(0.8)
@@ -296,7 +296,7 @@ if CommandLine.arguments.contains("--selftest-linked") {
                 line("FAIL: could not reach the helper windows through Accessibility"); return false
             }
             let controller = LinkedGroupController(settings: SettingsStore.shared)
-            controller.forceShowDividers = true            // (only skips "is one of these apps in front?")
+            controller.debugWindowStack = { [(idb, AX.frame(b) ?? .zero), (ida, AX.frame(a) ?? .zero)] }    // the group's own windows are on top
             WindowMover.apply(CGRect(x: base.minX, y: base.minY, width: 300, height: 160), to: a, bounds: visible)
             WindowMover.apply(CGRect(x: base.minX + 300, y: base.minY, width: 300, height: 160), to: b, bounds: visible)
             spin(0.4)
@@ -325,12 +325,56 @@ if CommandLine.arguments.contains("--selftest-linked") {
             controller.removeAll()
             return ok
         }
+                @MainActor func coverScenario() -> Bool {
+            line("\n== a divider line stays hidden while another window covers the seam")
+            let pa = host("selftest-A"), pb = host("selftest-B")
+            defer { pa.terminate(); pb.terminate() }
+            guard let a = waitFor(pa), let b = waitFor(pb), let ida = ids.windowID(of: a), let idb = ids.windowID(of: b) else {
+                line("FAIL: could not reach the helper windows through Accessibility"); return false
+            }
+            let controller = LinkedGroupController(settings: SettingsStore.shared)
+            let frameA = CGRect(x: base.minX, y: base.minY, width: 300, height: 160), frameB = CGRect(x: base.minX + 300, y: base.minY, width: 300, height: 160)
+            WindowMover.apply(frameA, to: a, bounds: visible); WindowMover.apply(frameB, to: b, bounds: visible)
+            spin(0.5)
+            // A made-up window stack (front to back), so this test does not depend on what else is on your screen.
+            let plain: [(id: CGWindowID, bounds: CGRect)] = [(idb, frameB), (ida, frameA), (12345, visible)]
+            controller.debugWindowStack = { plain }
+            controller.register([.init(pid: pa.processIdentifier, windowID: ida, element: a), .init(pid: pb.processIdentifier, windowID: idb, element: b)], gap: 0, bounds: visible)
+            spin(1.0)
+            var ok = true
+            func check(_ cond: Bool, _ pass: String, _ fail: String) { line(cond ? "PASS: \(pass)" : "FAIL: \(fail)"); ok = ok && cond }
+            guard let ext = controller.debugDividerExtent else { line("FAIL: no divider was created"); return false }
+            let mid = (ext.start + ext.end) / 2
+            check(controller.debugVisibleDividerCount == 1, "seam in plain view: the line is allowed", "the line was suppressed although nothing covers the seam")
+
+            // another window (even of the same app) in front of both, covering the seam
+            let cover = CGRect(x: base.minX + 220, y: base.minY - 10, width: 160, height: 180)
+            controller.debugWindowStack = { [(99999, cover)] + plain }
+            controller.windowsChanged()
+            check(controller.debugVisibleDividerCount == 0, "a window covers the seam: the line is hidden", "the line is still allowed over a covering window")
+            controller.debugHover(at: CGPoint(x: ext.position + 2, y: mid)); spin(0.15)
+            check(controller.debugRevealedLines == 0, "and hovering cannot bring it back over that window", "hovering revealed the line over a covering window")
+
+            // a window that covers only the END of the seam does not matter (the middle is what is probed)
+            controller.debugWindowStack = { [(99998, CGRect(x: base.minX + 220, y: base.minY - 40, width: 160, height: 30))] + plain }
+            controller.windowsChanged()
+            check(controller.debugVisibleDividerCount == 1, "something covering only the end of the seam does not hide it", "a covering window at the very end hid the line")
+
+            controller.debugWindowStack = { plain }
+            controller.windowsChanged()
+            check(controller.debugVisibleDividerCount == 1, "the covering window goes away: the line is allowed again", "the line did not come back")
+            controller.debugHover(at: CGPoint(x: ext.position + 2, y: mid)); spin(0.15)
+            check(controller.debugRevealedLines == 1, "and hovering reveals it again", "hovering did not reveal it")
+            controller.removeAll()
+            return ok
+        }
         let one = (only == nil || only == "1") ? scenario("separate processes, Accessibility notifications", notifications: true) : true
         let two = (only == nil || only == "2") ? scenario("separate processes, mouse-drag polling only (no notifications)", notifications: false) : true
         let three = (only == nil || only == "3") ? dividerScenario() : true
         let four = (only == nil || only == "4") ? laggyScenario() : true
         let five = (only == nil || only == "5") ? hoverScenario() : true
-        allPassed = one && two && three && four && five
+        let six = (only == nil || only == "6") ? coverScenario() : true
+        allPassed = one && two && three && four && five && six
         line("\n" + (allPassed ? "ALL PASSED" : "SOMETHING FAILED"))
     }
     exit(allPassed ? 0 : 1)

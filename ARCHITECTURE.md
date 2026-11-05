@@ -151,6 +151,7 @@ a group. The pieces:
   re-sent, one change at a time. Only a window that stays too big after repairs, on two readings, has its minimum learned
   (`MinSizeLearning`), and the group is re-applied from the grab-time layout.
 - **Resizing a window by its own edge** is still noticed, by AX notifications and by polling on mouse-drag events.
+- **When the line may show:** only where the seam is really visible. `Divider.probePoints` / `isUncovered` (Core, tested) look at the topmost window just inside each side of the seam; if it is not one of the group's windows on that side (even another window of the same app) the line stays hidden and cannot be revealed. It is re-checked whenever the front window or the desktop changes, and right before the line fades in.
 - **Leaving a group:** dragging a window away, snapping it (`SnapController.onWillMoveWindow`) or closing it.
 
 `--selftest-linked` proves all of this against separate helper processes, including windows that apply sizes late and a

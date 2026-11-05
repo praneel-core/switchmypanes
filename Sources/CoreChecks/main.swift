@@ -659,6 +659,23 @@ do {
         check(h.keepZone().contains(CGPoint(x: 50, y: 400)), "but visible all along once revealed")
     }
 
+    // ---- is the seam really visible? (a divider must not float over a window that is not in the group)
+    do {
+        let d = L.dividers(members: zones(halves))[0]                      // x = 600, y 0...800
+        let pts = d.probePoints()
+        eq(pts.before, CGPoint(x: 594, y: 400), "probe just inside the left window, mid-height"); eq(pts.after, CGPoint(x: 606, y: 400), "and the right window")
+        let g = L.dividers(members: zones(halves, gap: 10), gap: 10)[0].probePoints(gap: 10)
+        eq(g.before.x, 589, "with a gap the probes start further out so they still land inside the windows"); eq(g.after.x, 611, "(right side)")
+        let h = L.dividers(members: zones(grid)).first { $0.axis == .horizontal }!.probePoints()
+        eq(h.before, CGPoint(x: 600, y: 394), "horizontal divider: above the line"); eq(h.after, CGPoint(x: 600, y: 406), "and below it")
+        check(d.isUncovered(topBefore: 10, topAfter: 11, beforeWindows: [10], afterWindows: [11]), "group windows on top at both probes: visible")
+        check(!d.isUncovered(topBefore: 99, topAfter: 11, beforeWindows: [10], afterWindows: [11]), "another window (same app or not) covers the left side: hidden")
+        check(!d.isUncovered(topBefore: 10, topAfter: 99, beforeWindows: [10], afterWindows: [11]), "...or the right side: hidden")
+        check(!d.isUncovered(topBefore: nil, topAfter: 11, beforeWindows: [10], afterWindows: [11]), "nothing found there (e.g. another desktop): hidden")
+        check(!d.isUncovered(topBefore: 11, topAfter: 10, beforeWindows: [10], afterWindows: [11]), "the wrong windows on each side: hidden")
+        check(d.isUncovered(topBefore: 11, topAfter: 12, beforeWindows: [10, 11], afterWindows: [12, 13]), "several windows on a side (grid): any of them counts")
+    }
+
     // a missing zone does not break anything; no-op returns the same frames
     var sparse = zones(grid); sparse.removeValue(forKey: 3)
     new = sparse[0]!; new.size.width += 30
