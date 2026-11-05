@@ -16,6 +16,7 @@ final class SwitcherController {
     private var selection = SwitcherSelection(count: 0)
     private var columns = 1
     private var screen: NSScreen?
+    private var caption: String?              // shown above the tiles in per-app mode
     private var panelVisible = false
     private var showWork: DispatchWorkItem?
     private var watchdog: Timer?
@@ -31,10 +32,20 @@ final class SwitcherController {
         panel.onClose = { [weak self] index in self?.close(at: index) }
     }
 
-    func begin(reverse: Bool) {
+    enum Scope { case allWindows, frontmostApp }
+
+    func begin(reverse: Bool, scope: Scope = .allWindows) {
         guard !isActive else { return }
         inventory.noteFrontmost()
         var list = inventory.snapshot(includeOtherSpaces: true)
+        caption = nil
+        if scope == .frontmostApp {
+            // Per-app cycling: only the windows of the app you are in, same most-recently-used order.
+            guard let app = NSWorkspace.shared.frontmostApplication, app.processIdentifier != getpid() else { return }
+            list = list.filter { $0.pid == app.processIdentifier }
+            guard list.count > 1 else { return }          // nothing to cycle between
+            caption = "\(app.localizedName ?? "App")  ·  \(list.count) windows"
+        }
         guard !list.isEmpty else { return }
 
         let screen = DisplayProvider.screenUnderMouse()
@@ -76,7 +87,7 @@ final class SwitcherController {
         guard isActive, let screen else { return }
         let layout = SwitcherLayout.plan(count: windows.count, screen: screen)
         columns = layout.columns
-        panel.present(windows: windows, layout: layout, selected: selection.index, on: screen,
+        panel.present(windows: windows, layout: layout, selected: selection.index, on: screen, caption: caption,
                       thumbnail: { [thumbnails] in thumbnails.cached($0) })
         guard !panelVisible else { return }       // thumbnails are only (re)captured when the overlay first appears
         panelVisible = true

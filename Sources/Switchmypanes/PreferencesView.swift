@@ -86,6 +86,8 @@ struct PreferencesView: View {
             }
             Section("Window switcher") {
                 Toggle("Window switcher shortcut enabled", isOn: $settings.switcherEnabled)
+                Toggle("\(ShortcutDisplay.symbols(settings.switcherModifier)) ` cycles through the windows of the current app only", isOn: $settings.appWindowsEnabled)
+                    .disabled(!settings.switcherEnabled)
                 Toggle("Include windows from other desktops", isOn: $settings.includeOtherDesktops)
                     .disabled(!settings.switcherEnabled || !spacesAvailable)
                 Toggle("Include full-screen apps", isOn: $settings.includeFullScreen)

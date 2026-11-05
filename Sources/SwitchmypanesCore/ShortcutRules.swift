@@ -40,7 +40,9 @@ public enum ShortcutValidator {
             if m.isEmpty { return "Hold at least one modifier key (⌃ ⌥ ⌘) while pressing Tab." }
             if m.contains(.shift) { return "Shift is already used to go backwards. Use ⌃, ⌥ or ⌘." }
             if m == .command { return "⌘Tab belongs to macOS and is left alone. Try ⌥Tab, or add another modifier." }
-            if c.layoutsKeyCode == tab && c.layoutsModifier == m { return "That is already the Snap Layouts shortcut." }
+            if (c.layoutsKeyCode == tab || c.layoutsKeyCode == KeyClassifier.backtick) && c.layoutsModifier.subtracting(.shift) == m {
+                return "That is already the Snap Layouts shortcut."
+            }
             return nil
 
         case .snap:
@@ -58,6 +60,9 @@ public enum ShortcutValidator {
                 return "⌘\(ShortcutDisplay.keyName(keyCode)) is a standard macOS shortcut. Pick another key."
             }
             if keyCode == tab && m.subtracting(.shift) == c.switcherModifier { return "That is already the window switcher shortcut." }
+            if keyCode == KeyClassifier.backtick && c.appWindowsEnabled && m.subtracting(.shift) == c.switcherModifier {
+                return "That is already the shortcut for cycling the windows of one app."
+            }
             if KeyClassifier.arrow(for: keyCode) != nil &&
                 (m == c.snapModifiers || m == c.snapModifiers.union(.shift)) { return "That is already the snapping shortcut." }
             return nil

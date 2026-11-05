@@ -11,6 +11,9 @@ Free, local only: no accounts, no network calls, no analytics. Phase 1 of 3: see
   Cmd+Tab is untouched.
 - **Drag to snap**: drag a window by its title bar to the left or right edge (half), top edge (maximize) or a corner
   (quarter). A translucent preview shows where it will land; release to snap. Edges shared with another display are ignored.
+- **Per-app cycling** (**Option+`**): the same overlay, but only the windows of the app you are in, in most-recently-used
+  order. A quick tap toggles between that app's last two windows. ` also cycles inside the normal Option+Tab overlay.
+  It uses the same modifier as the switcher and can be turned off in Preferences.
 - **Close windows from the overlay**: hover a tile and click the red ✕, or highlight a window and press **Delete** or
   **W**. It closes exactly as if you had clicked its close button, so "Save changes?" prompts still appear (the tile
   stays until the window is really gone). For a window on another desktop (including a full-screen app) it first switches to that desktop, then closes it.
@@ -118,4 +121,5 @@ No automated tests can click macOS permission dialogs; see the manual test check
 19. Previews: work in two windows on desktop 1 for a few seconds each, switch to another desktop, Option+Tab: both should show pictures. In Preferences, add an app to "Never take previews of": its tile should show only the icon. Switch the toggle off and confirm new windows stop getting pictures. If Activity Monitor shows Switchmypanes using noticeable CPU/energy while idle, tell me.
 20. Preferences: open it (it should fit your screen and scroll). Click the Snap Layouts shortcut, press ⌃⌥B: it changes; press Option+Z: it should now do nothing, ⌃⌥B opens the picker. Try ⌘Tab for the switcher (refused), ⌥← for snapping (refused). Record ⌃⌥Tab for the switcher: hold both, Tab cycles, releasing EITHER key commits. Use the reset arrows. While recording, pressing the current shortcut must NOT trigger it.
 21. Open at login: turn it on from the installed copy. If macOS asks, approve it in System Settings → General → Login Items; log out and in (or restart) and check that the menu bar icon is back. Turn it off again to test that too.
-22. Menu bar: Pause stops all shortcuts; Resume restores; Quit removes the icon.
+22. Per-app cycling: open two Finder windows and two Safari windows. In Finder, Option+` shows only the Finder windows (caption "Finder · 2 windows"), the second preselected; release to switch; a quick tap toggles back. Shift+` goes backwards. In an app with one window it should do nothing. Cmd+` must still be macOS's own.
+23. Menu bar: Pause stops all shortcuts; Resume restores; Quit removes the icon.

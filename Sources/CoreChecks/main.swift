@@ -437,5 +437,31 @@ do {
     eq(kd(6, .option), .passThrough, "old Snap Layouts key no longer works")
 }
 
+section("Per-app window cycling")
+do {
+    let cfg = ShortcutConfig()
+    func kd(_ code: Int64, _ f: ShortcutModifiers, rep: Bool = false, active: Bool = false, cfg c: ShortcutConfig? = nil) -> KeyAction {
+        KeyClassifier.classifyKeyDown(keyCode: code, flags: f, isRepeat: rep, switcherActive: active, config: c ?? cfg)
+    }
+    eq(kd(50, .option), .appWindowsOpen(reverse: false), "Option+` opens the per-app overlay")
+    eq(kd(50, [.option, .shift]), .appWindowsOpen(reverse: true), "Option+Shift+` opens it reversed")
+    eq(kd(50, .option, rep: true), .swallow, "auto-repeat swallowed")
+    eq(kd(50, .command), .passThrough, "⌘` stays with macOS"); eq(kd(50, []), .passThrough, "plain ` untouched")
+    eq(kd(50, [.option, .control]), .passThrough, "other modifier combos untouched")
+    eq(kd(50, .option, active: true), .switcherNext, "` cycles forward while the overlay is open")
+    eq(kd(50, [.option, .shift], active: true), .switcherPrevious, "Shift+` cycles back")
+    var off = cfg; off.appWindowsEnabled = false
+    eq(kd(50, .option, cfg: off), .passThrough, "disabled")
+    var sw = cfg; sw.switcherEnabled = false
+    eq(kd(50, .option, cfg: sw), .passThrough, "needs the switcher to be enabled")
+    var two = cfg; two.switcherModifier = [.control, .option]
+    eq(kd(50, [.control, .option], cfg: two), .appWindowsOpen(reverse: false), "follows the switcher's modifier")
+    eq(kd(50, .option, cfg: two), .passThrough, "and only that modifier")
+    check(ShortcutValidator.validate(.layouts, modifiers: .option, keyCode: 50, current: cfg) != nil, "Snap Layouts may not take Option+`")
+    check(ShortcutValidator.validate(.layouts, modifiers: .option, keyCode: 50, current: off) == nil, "...unless per-app cycling is off")
+    var layBt = cfg; layBt.layoutsKeyCode = 50; layBt.layoutsModifier = .control
+    check(ShortcutValidator.validate(.switcher, modifiers: .control, keyCode: 48, current: layBt) != nil, "switcher modifier may not collide with a ` Snap Layouts shortcut")
+}
+
 print("\n\(total - failures)/\(total) checks passed")
 exit(failures == 0 ? 0 : 1)

@@ -121,6 +121,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, KeyboardMonitorDelegat
     func keyboardMonitor(_ monitor: KeyboardMonitor, perform action: KeyAction) {
         switch action {
         case .switcherOpen(let reverse): switcher.begin(reverse: reverse)
+        case .appWindowsOpen(let reverse): switcher.begin(reverse: reverse, scope: .frontmostApp)
         case .switcherNext: switcher.next()
         case .switcherPrevious: switcher.previous()
         case .switcherMove(let key): switcher.move(key)

@@ -17,15 +17,18 @@ public struct ShortcutConfig: Equatable {
     public var layoutsEnabled: Bool
     public var layoutsModifier: ShortcutModifiers
     public var layoutsKeyCode: Int64
+    /// Modifier + ` cycles through the windows of the front app only (uses the same modifier as the switcher).
+    public var appWindowsEnabled: Bool
     public init(switcherModifier: ShortcutModifiers = .option,
                 snapModifiers: ShortcutModifiers = [.control, .option],
                 switcherEnabled: Bool = true, snapEnabled: Bool = true,
                 layoutsEnabled: Bool = true, layoutsModifier: ShortcutModifiers = .option,
-                layoutsKeyCode: Int64 = 6) {
+                layoutsKeyCode: Int64 = 6, appWindowsEnabled: Bool = true) {
         self.switcherModifier = switcherModifier; self.snapModifiers = snapModifiers
         self.switcherEnabled = switcherEnabled; self.snapEnabled = snapEnabled
         self.layoutsEnabled = layoutsEnabled; self.layoutsModifier = layoutsModifier
         self.layoutsKeyCode = layoutsKeyCode
+        self.appWindowsEnabled = appWindowsEnabled
     }
 }
 
@@ -33,6 +36,7 @@ public enum KeyAction: Equatable {
     case passThrough                       // not ours: let the app receive it
     case swallow                           // ours, but nothing to do (e.g. auto-repeat)
     case switcherOpen(reverse: Bool)
+    case appWindowsOpen(reverse: Bool)     // same overlay, but only the windows of the front app
     case switcherNext, switcherPrevious
     case switcherMove(ArrowKey)
     case switcherCancel
@@ -50,7 +54,7 @@ public enum KeyAction: Equatable {
 /// Decides what a key press means. The event tap only ever acts on what this returns,
 /// so "which keys do we swallow" is defined in exactly one, testable, place.
 public enum KeyClassifier {
-    public static let w: Int64 = 13, delete: Int64 = 51, forwardDelete: Int64 = 117, tab: Int64 = 48, escape: Int64 = 53, z: Int64 = 6, space: Int64 = 49, returnKey: Int64 = 36, enter: Int64 = 76
+    public static let backtick: Int64 = 50, w: Int64 = 13, delete: Int64 = 51, forwardDelete: Int64 = 117, tab: Int64 = 48, escape: Int64 = 53, z: Int64 = 6, space: Int64 = 49, returnKey: Int64 = 36, enter: Int64 = 76
     public static let left: Int64 = 123, right: Int64 = 124, down: Int64 = 125, up: Int64 = 126
 
     public static func arrow(for keyCode: Int64) -> ArrowKey? {
@@ -104,7 +108,7 @@ public enum KeyClassifier {
             // Safety net: if we somehow missed the modifier release, commit now.
             guard flags.contains(config.switcherModifier) else { return .switcherCommit }
             switch keyCode {
-            case tab: return flags.contains(.shift) ? .switcherPrevious : .switcherNext
+            case tab, backtick: return flags.contains(.shift) ? .switcherPrevious : .switcherNext
             case escape: return .switcherCancel
             case delete, forwardDelete, w: return .switcherClose
             default:
@@ -114,6 +118,10 @@ public enum KeyClassifier {
         }
         if config.switcherEnabled, keyCode == tab, flags.subtracting(.shift) == config.switcherModifier {
             return isRepeat ? .swallow : .switcherOpen(reverse: flags.contains(.shift))
+        }
+        if config.switcherEnabled, config.appWindowsEnabled, keyCode == backtick,
+           flags.subtracting(.shift) == config.switcherModifier {
+            return isRepeat ? .swallow : .appWindowsOpen(reverse: flags.contains(.shift))
         }
         if config.layoutsEnabled, keyCode == config.layoutsKeyCode, flags == config.layoutsModifier {
             return isRepeat ? .swallow : .layoutsOpen

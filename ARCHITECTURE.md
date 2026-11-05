@@ -123,7 +123,15 @@ Accessibility API is top-left; all logic uses top-left and converts once, in `Di
 
 ## Phase 3 plan
 
-Snap groups and shared-edge resizing (needs an AX observer for move/resize notifications), live thumbnails,
-per-app exclusions, Task View-style overview, Option+` per-app cycling, and the optional Cmd+Tab override
-(off by default; disable the native shortcut through the isolated private layer, restore on quit / next launch /
-pause; keep Cmd+Q and Cmd+H alive while open).
+- DONE: per-app window cycling. Modifier + ` (the switcher's modifier) opens the same overlay filtered to the front app
+  (`SwitcherController.Scope.frontmostApp`, `KeyAction.appWindowsOpen`); ` also cycles inside any open overlay.
+- To do: snap groups and shared-edge resizing (needs an AX observer for move/resize notifications), live-updating
+  thumbnails, per-app exclusions for the switcher and snapping, a Task View-style overview.
+- Optional small items: "all screens / current screen only" switcher setting.
+
+## Decisions
+
+- **Cmd+Tab is never overridden.** An earlier plan to swallow Cmd+Tab and disable the native shortcut was cancelled:
+  it needs private APIs that can leave the system shortcut disabled if the app crashes, and macOS's own app
+  switcher stays useful next to a window switcher. Cmd+Tab (and Cmd+`) always belong to macOS; the recorder refuses
+  to assign them.
