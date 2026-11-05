@@ -19,11 +19,14 @@ protocol SpaceProvider {
     func snapshot() -> SpaceSnapshot?
     /// IDs of the Spaces this window belongs to (empty = none or unknown).
     func spaces(ofWindow id: CGWindowID) -> [Int]
+    /// Does the window server consider the window really showing (somewhere)? nil = unknown.
+    func isOrderedIn(window id: CGWindowID) -> Bool?
 }
 
 struct CurrentSpaceOnlyProvider: SpaceProvider {
     func snapshot() -> SpaceSnapshot? { nil }
     func spaces(ofWindow id: CGWindowID) -> [Int] { [] }
+    func isOrderedIn(window id: CGWindowID) -> Bool? { nil }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -33,15 +36,18 @@ struct CurrentSpaceOnlyProvider: SpaceProvider {
 //   CGSMainConnectionID()                      -> connection to the window server
 //   CGSCopyManagedDisplaySpaces(cid)           -> per display: its Spaces and its current Space
 //   CGSCopySpacesForWindows(cid, mask, [wid])  -> IDs of the Spaces a window is on (mask 7 = all)
+//   CGSWindowIsOrderedIn(cid, wid, &flag)      -> is the window really showing? (OPTIONAL: if missing we just don't filter ghosts)
 // ─────────────────────────────────────────────────────────────────────────────
 struct CGSSpaceProvider: SpaceProvider {
     private typealias MainConnection = @convention(c) () -> Int32
     private typealias CopyManaged = @convention(c) (Int32) -> Unmanaged<CFArray>?
     private typealias CopySpaces = @convention(c) (Int32, Int32, CFArray) -> Unmanaged<CFArray>?
+    private typealias IsOrderedIn = @convention(c) (Int32, UInt32, UnsafeMutablePointer<DarwinBoolean>) -> Int32
 
     private let mainConnection: MainConnection
     private let copyManaged: CopyManaged
     private let copySpaces: CopySpaces
+    private let orderedIn: IsOrderedIn?
 
     init?() {
         func load(_ name: String) -> UnsafeMutableRawPointer? { dlsym(UnsafeMutableRawPointer(bitPattern: -2), name) }
@@ -50,6 +56,7 @@ struct CGSSpaceProvider: SpaceProvider {
         mainConnection = unsafeBitCast(a, to: MainConnection.self)
         copyManaged = unsafeBitCast(b, to: CopyManaged.self)
         copySpaces = unsafeBitCast(c, to: CopySpaces.self)
+        orderedIn = load("CGSWindowIsOrderedIn").map { unsafeBitCast($0, to: IsOrderedIn.self) }
         // Self-test: if the answer does not look like what we expect, do not use it at all.
         guard snapshot() != nil else { return nil }
     }
@@ -74,6 +81,12 @@ struct CGSSpaceProvider: SpaceProvider {
 
     func spaces(ofWindow id: CGWindowID) -> [Int] {
         (copySpaces(mainConnection(), 7, [id] as CFArray)?.takeRetainedValue() as? [Int]) ?? []
+    }
+
+    func isOrderedIn(window id: CGWindowID) -> Bool? {
+        guard let orderedIn else { return nil }
+        var flag = DarwinBoolean(false)
+        return orderedIn(mainConnection(), id, &flag) == 0 ? flag.boolValue : nil
     }
 }
 

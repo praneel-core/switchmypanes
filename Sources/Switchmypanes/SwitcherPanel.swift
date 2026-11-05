@@ -58,7 +58,7 @@ final class WindowTileView: NSView {
     var isSelected = false { didSet { refreshAppearance() } }
 
     init(frame: NSRect, index: Int, info: WindowInfo, thumbnail: NSImage?) {
-        self.index = index; self.windowID = info.id; self.icon = info.icon; self.canClose = info.isOnCurrentSpace
+        self.index = index; self.windowID = info.id; self.icon = info.icon; self.canClose = true
         label = NSTextField(labelWithString: info.title)
         super.init(frame: frame)
         wantsLayer = true
@@ -77,13 +77,13 @@ final class WindowTileView: NSView {
         label.textColor = .labelColor
         label.toolTip = "\(info.appName) — \(info.title)"
         addSubview(thumb); addSubview(badge); addSubview(label)
-        // Close button: appears while the mouse is over the tile (not offered for windows on other desktops).
+        // Close button: appears while the mouse is over the tile (for a window on another desktop it first switches there).
         closeButton.isBordered = false
         closeButton.imagePosition = .imageOnly
         closeButton.image = NSImage(systemSymbolName: "xmark.circle.fill", accessibilityDescription: "Close window")?
             .withSymbolConfiguration(.init(paletteColors: [.white, .systemRed]))
         closeButton.imageScaling = .scaleProportionallyUpOrDown
-        closeButton.toolTip = "Close this window"
+        closeButton.toolTip = info.isOnAnotherSpace ? "Close this window (switches to its desktop first)" : "Close this window"
         closeButton.target = self
         closeButton.action = #selector(closeTapped)
         closeButton.isHidden = true

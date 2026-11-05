@@ -13,7 +13,10 @@ Free, local only: no accounts, no network calls, no analytics. Phase 1 of 3: see
   (quarter). A translucent preview shows where it will land; release to snap. Edges shared with another display are ignored.
 - **Close windows from the overlay**: hover a tile and click the red ✕, or highlight a window and press **Delete** or
   **W**. It closes exactly as if you had clicked its close button, so "Save changes?" prompts still appear (the tile
-  stays until the window is really gone). Not offered for windows on other desktops.
+  stays until the window is really gone). For a window on another desktop (including a full-screen app) it first switches to that desktop, then closes it.
+- **Minimized and hidden windows**: minimized windows and windows of hidden (Cmd+H) apps are listed too, tagged
+  "Minimized" / "Hidden"; choosing one restores it. Apps like Claude or Slack that "close" a window to the
+  background without destroying it are NOT listed (they are not really showing anywhere). Toggle in Preferences.
 - **Other desktops and full-screen apps**: the overlay also lists windows on other desktops (Spaces) and full-screen
   apps, each with a small "Desktop 2" / "Full screen" tag. Choosing one makes macOS switch to that desktop.
   Both can be turned off in Preferences. Thumbnails for these show the last picture taken while the window was
@@ -61,6 +64,11 @@ shortcuts. Everything else is passed on untouched. It does not read characters, 
 typed, and cannot see into password fields (macOS hides those from all apps). It only swallows Option+Tab, the
 snap shortcuts, and, while the overlay is open, Tab / arrows / Esc.
 
+## Diagnostics
+
+`build/Switchmypanes.app/Contents/MacOS/Switchmypanes --list-windows` prints, in the terminal, the windows the
+switcher would show (app, title, desktop / minimized status), then exits. Useful for "why is this window (not) listed".
+
 ## Menu bar and URL scheme
 
 Menu: Preferences, Permissions, Pause / Resume, Quit. `open switchmypanes://pause`, `://resume`,
@@ -68,7 +76,7 @@ Menu: Preferences, Permissions, Pause / Resume, Quit. `open switchmypanes://paus
 
 ## Known limits in Phase 1
 
-Minimized and hidden windows are not listed yet; thumbnails are captured when the overlay opens (placeholders
+A window minimized less than about a second ago may not be listed yet (the check runs in the background); thumbnails are captured when the overlay opens (placeholders
 show app icons for the first moment); with a very large number of windows the overlay shows only as many as fit
 the screen; no drag-to-edge, Snap Assist or Snap Layouts yet (Phase 2).
 No automated tests can click macOS permission dialogs; see the manual test checklist below.
@@ -91,4 +99,6 @@ No automated tests can click macOS permission dialogs; see the manual test check
 14. Snap Assist: snap a window Left (Control+Option+Left): after a moment, other windows appear over the right half with the first selected. Return fills it. Try: click a tile; Esc; clicking elsewhere; pressing Control+Option+Up right after the snap (it should close Assist AND make the top-left quarter, with no flash if you press quickly). Repeat with a drag to the right edge.
 15. Spaces: create a second desktop (Mission Control, +) and put a window there; make an app full screen (green button). Go back to your first desktop and press Option+Tab: those windows appear, tagged "Desktop 2" / "Full screen". Select one and release Option: macOS should switch to its desktop and that window should be in front. Test both with the app having ONLY that one window, and with the app also having a window on your current desktop (the harder case). Then turn the two options off in Preferences and check they disappear.
 16. Closing: open the overlay with 3+ windows (use throwaway windows, e.g. new Finder windows). Hover a tile: a red ✕ appears; click it: the window closes and the overlay re-flows. Press Option+Tab, Tab to a window, press Delete (then W): same. Try a TextEdit document with unsaved text: the save sheet appears and the tile stays. Close every window: the overlay should disappear on its own. Tiles for other desktops should show no ✕ and beep on Delete.
-17. Menu bar: Pause stops all shortcuts; Resume restores; Quit removes the icon.
+17. Minimized/hidden: minimize a window (yellow button) and hide another app (Cmd+H). Option+Tab lists them tagged "Minimized"/"Hidden"; selecting one brings it back. Quit-to-background apps (close Claude's window with the red button) should NOT appear.
+18. Closing a full-screen window from the overlay (hover ✕) from another desktop: macOS should switch to it, close it, and usually return you. Tell me what you see.
+19. Menu bar: Pause stops all shortcuts; Resume restores; Quit removes the icon.

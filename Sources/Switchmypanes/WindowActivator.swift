@@ -13,7 +13,11 @@ final class WindowActivator {
     init(ids: WindowIDProvider) { finder = AXWindowFinder(ids: ids) }
 
     func activate(_ info: WindowInfo) {
-        if info.isOnCurrentSpace { raise(info) } else { activateOnOtherSpace(info) }
+        if info.isOnAnotherSpace {
+            onOtherSpace(info) { [weak self] window, appEl in self?.raise(window: window, appElement: appEl, pid: info.pid) }
+        } else {
+            raise(info)               // visible, minimized or hidden: all reachable through Accessibility
+        }
     }
 
     /// Window on another desktop / a full-screen app.
@@ -27,20 +31,28 @@ final class WindowActivator {
     /// Limits: if the same app also has a window on the CURRENT Space, macOS may just focus that one
     /// instead of switching. A stricter private-API route exists (SkyLight "SLPS" calls); it would be
     /// added in this file if real-world testing shows it is needed.
-    private func activateOnOtherSpace(_ info: WindowInfo) {
+    private func onOtherSpace(_ info: WindowInfo, perform: @escaping (AXUIElement, AXUIElement) -> Void) {
         let appEl = AX.app(pid: info.pid)
+        if let app = NSRunningApplication(processIdentifier: info.pid), app.isHidden { app.unhide() }
         AXUIElementSetAttributeValue(appEl, kAXFrontmostAttribute as CFString, kCFBooleanTrue)
         NSRunningApplication(processIdentifier: info.pid)?.activate()
-        for delay in [0.3, 0.6, 1.0, 1.6] {
+        let done = Flag()
+        for delay in [0.3, 0.6, 1.0, 1.6, 2.4] {
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-                guard let self, let window = self.finder.find(pid: info.pid, windowID: info.id, frame: info.frame, title: info.title)
+                guard let self, !done.value,
+                      let window = self.finder.find(pid: info.pid, windowID: info.id, frame: info.frame, title: info.title)
                 else { return }
-                self.raise(window: window, appElement: appEl, pid: info.pid)
+                done.value = true            // act exactly once, as soon as the window becomes reachable
+                perform(window, appEl)
             }
         }
     }
 
+    private final class Flag { var value = false }
+
     private func raise(_ info: WindowInfo) {
+        // A hidden app (Cmd+H) must be shown first; a minimized window is restored in raise(window:...).
+        if let app = NSRunningApplication(processIdentifier: info.pid), app.isHidden { app.unhide() }
         let appEl = AX.app(pid: info.pid)
         AXUIElementSetAttributeValue(appEl, kAXFrontmostAttribute as CFString, kCFBooleanTrue)
         if let window = finder.find(pid: info.pid, windowID: info.id, frame: info.frame, title: info.title) {
@@ -51,7 +63,7 @@ final class WindowActivator {
     }
 
     private func raise(window: AXUIElement, appElement appEl: AXUIElement, pid: pid_t) {
-        // The window may be minimized (Phase 2 lists those); make sure it is not.
+        // Restore the window if it is minimized.
         if AX.bool(window, kAXMinimizedAttribute) == true {
             AXUIElementSetAttributeValue(window, kAXMinimizedAttribute as CFString, kCFBooleanFalse)
         }
@@ -63,11 +75,21 @@ final class WindowActivator {
 
     /// Closes the window by pressing its close button through Accessibility (so apps behave exactly as if
     /// you had clicked it: "Save changes?" sheets appear, unclosable windows stay). Returns false when the
-    /// window cannot be found or has no close button (for example windows on another desktop).
+    /// window cannot be found or has no close button.
     @discardableResult
     func close(_ info: WindowInfo) -> Bool {
-        guard info.isOnCurrentSpace,
-              let window = finder.find(pid: info.pid, windowID: info.id, frame: info.frame, title: info.title),
+        if info.isOnAnotherSpace {
+            // Accessibility cannot reach a window on a desktop that is not showing. So: switch to its desktop
+            // (as for activation), then press its close button once it is reachable. When the window was a
+            // full-screen one, macOS usually returns you to your previous desktop afterwards.
+            onOtherSpace(info) { window, _ in
+                if let button = AX.element(window, kAXCloseButtonAttribute) {
+                    AXUIElementPerformAction(button, kAXPressAction as CFString)
+                }
+            }
+            return true
+        }
+        guard let window = finder.find(pid: info.pid, windowID: info.id, frame: info.frame, title: info.title),
               let button = AX.element(window, kAXCloseButtonAttribute) else { return false }
         return AXUIElementPerformAction(button, kAXPressAction as CFString) == .success
     }

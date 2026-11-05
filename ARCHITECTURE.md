@@ -49,7 +49,7 @@ permissions or another app.
 | Window thumbnails | ScreenCaptureKit `SCScreenshotManager` | public |
 | Keyboard shortcuts | `CGEventTap` | public |
 | Match a CG window with its AX window | `_AXUIElementGetWindow` | **private**, looked up with `dlsym`; missing -> nil -> frame/title matching |
-| Which Space a window is on, and Space kinds | `CGSCopySpacesForWindows`, `CGSCopyManagedDisplaySpaces`, `CGSMainConnectionID` | **private**, `dlsym` + self-test in `CGSSpaceProvider`; failure -> `CurrentSpaceOnlyProvider` |
+| Which Space a window is on, and Space kinds | `CGSCopySpacesForWindows`, `CGSCopyManagedDisplaySpaces`, `CGSMainConnectionID`, `CGSWindowIsOrderedIn` (optional) | **private**, `dlsym` + self-test in `CGSSpaceProvider`; failure -> `CurrentSpaceOnlyProvider` |
 | List windows including other Spaces | `CGWindowListCopyWindowInfo(.optionAll)` | public |
 | Reliable cross-app activation fallback (only if needed) | SkyLight `SLPS*` | **private**, would live inside `WindowActivator` |
 
@@ -111,7 +111,9 @@ Accessibility API is top-left; all logic uses top-left and converts once, in `Di
 - DONE: Snap Assist (`SnapAssistController`): `SnapController.onSnapped` -> 0.25 s delay -> `SwitcherPanel` centred on the empty half; `KeyClassifier` assist mode (`pickerDismiss` closes it and re-classifies the same key). Halves only; quarters are a possible follow-up.
 - DONE: other desktops + full-screen apps in the switcher (`SpaceClassifier` in Core decides what to include; `CGSSpaceProvider` supplies the data; `WindowActivator` asks the app to come forward, then retries the exact raise while the Space switch settles). Snap Layouts / Assist deliberately stay on the current Space: Accessibility cannot move windows on other Spaces.
 - DONE: close from the overlay (hover ✕, Delete / W): `KeyAction.switcherClose`, `WindowActivator.close` presses the AX close button, `SwitcherController.removeIfGone` re-checks after 0.25 s and 0.7 s so "Save changes?" windows keep their tile.
-- Switcher still to do: minimized + hidden windows (the `hiddenOrMinimized` placement already exists), all-screens / current-screen option, live thumbnails.
+- DONE: minimized + hidden windows. macOS reports both as "not drawn, on the current Space" (`hiddenOrMinimized`); `WindowInventory` confirms through Accessibility in the BACKGROUND (never on the key-press path) and caches the label. Windows on other desktops that are not "ordered in" (`orderedOutElsewhere`, via private `CGSWindowIsOrderedIn`) are closed-to-background ghosts and are only listed if they were verified minimized earlier.
+- DONE: closing a window on another desktop = switch there (`WindowActivator.onOtherSpace`), then press its close button once Accessibility can see it.
+- Switcher still to do: all-screens / current-screen option, live thumbnails.
 - Preferences: shortcut recorder, launch at login (`SMAppService.mainApp`).
 
 ## Phase 3 plan

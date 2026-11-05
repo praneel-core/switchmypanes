@@ -18,8 +18,10 @@ struct PreferencesView: View {
                     .disabled(!settings.switcherEnabled || !spacesAvailable)
                 Toggle("Include full-screen apps", isOn: $settings.includeFullScreen)
                     .disabled(!settings.switcherEnabled || !spacesAvailable)
+                Toggle("Include minimized and hidden windows", isOn: $settings.includeMinimized)
+                    .disabled(!settings.switcherEnabled || !spacesAvailable)
                 if !spacesAvailable {
-                    Label("macOS did not provide desktop information, so only windows on the current desktop are listed.",
+                    Label("macOS did not provide desktop information, so only visible windows on the current desktop are listed.",
                           systemImage: "exclamationmark.triangle").font(.caption).foregroundStyle(.orange)
                 }
                 Text("Hold Option and press Tab. Tab / Shift+Tab or the arrow keys move, release Option to switch, Esc cancels. Cmd+Tab is not changed.")

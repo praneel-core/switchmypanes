@@ -11,6 +11,12 @@ struct WindowInfo {
     var placement: WindowPlacement = .currentSpace
     var spaceLabel: String? = nil       // "Desktop 2" / "Full screen" for windows on other Spaces
     var isOnCurrentSpace: Bool { placement == .currentSpace }
+    /// Accessibility can act on it directly (raise, close): visible windows and minimized / hidden ones.
+    /// Windows on other desktops need a desktop switch first.
+    var isAccessible: Bool { placement == .currentSpace || placement == .hiddenOrMinimized }
+    var isOnAnotherSpace: Bool {
+        switch placement { case .otherSpace, .orderedOutElsewhere: return true; default: return false }
+    }
 }
 
 /// Knows which windows exist and in which most-recently-used order.
@@ -23,6 +29,16 @@ final class WindowInventory {
     private var titleCache: [CGWindowID: String] = [:]
     private var titleRefreshInFlight = false
     private var timer: Timer?
+    private var tick = 0
+
+    // Minimized / hidden windows look identical to macOS's window list, so Accessibility tells them apart.
+    // That can be slow for a sluggish app, so it runs in the background and the result is cached here.
+    private struct HiddenLabel { let text: String; let when: Date }     // text "" = "not a real minimized window"
+    private var hiddenLabels: [CGWindowID: HiddenLabel] = [:]
+    private var hiddenRefreshInFlight = false
+    private var unlabeledCandidates: [WindowInfo] = []
+    private var seenHiddenIDs: Set<CGWindowID> = []      // every not-drawn window seen by the latest scan
+    private lazy var finder = AXWindowFinder(ids: ids)
 
     init(ids: WindowIDProvider, spaces: SpaceProvider, options: @escaping () -> SpaceFilterOptions) {
         self.ids = ids; self.spaces = spaces; self.options = options
@@ -35,7 +51,12 @@ final class WindowInventory {
             forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main
         ) { [weak self] _ in MainActor.assumeIsolated { self?.noteFrontmost() } }
         timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated { self?.noteFrontmost() }
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.noteFrontmost()
+                self.tick += 1
+                if self.tick % 2 == 0 { self.refreshHiddenLabelsInBackground() }   // about once a second
+            }
         }
         noteFrontmost()
     }
@@ -58,7 +79,7 @@ final class WindowInventory {
     /// other desktops / full-screen apps according to the user's settings.
     func snapshot(includeOtherSpaces: Bool = false) -> [WindowInfo] {
         let o = options()
-        let raw = rawWindows(includeOtherSpaces: includeOtherSpaces && (o.includeOtherDesktops || o.includeFullScreen), filter: o)
+        let raw = rawWindows(includeOtherSpaces: includeOtherSpaces && o.needsFullWindowList, filter: o)
         let order = mru.ordered(live: raw.map(\.id))
         let byID = Dictionary(raw.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
         let result = order.compactMap { byID[$0] }
@@ -69,6 +90,8 @@ final class WindowInventory {
     // MARK: Reading the window list
 
     private func rawWindows(includeOtherSpaces: Bool = false, filter: SpaceFilterOptions = SpaceFilterOptions()) -> [WindowInfo] {
+        unlabeledCandidates.removeAll()
+        seenHiddenIDs.removeAll()
         // With Spaces information we can list ALL windows and decide per window; without it (or when the
         // user wants the current desktop only) we use the public on-screen list: current Space, front to back.
         let snap = includeOtherSpaces ? spaces.snapshot() : nil
@@ -101,12 +124,29 @@ final class WindowInventory {
                 // Not drawn right now: another desktop, a full-screen app, a minimized window, or a helper window.
                 let windowSpaces = spaces.spaces(ofWindow: num)
                 placement = SpaceClassifier.classify(isOnScreen: false, windowSpaces: windowSpaces,
-                                                     activeSpaces: snap.activeSpaces, kinds: snap.kinds)
+                                                     activeSpaces: snap.activeSpaces, kinds: snap.kinds,
+                                                     isOrderedIn: spaces.isOrderedIn(window: num))
                 guard SpaceClassifier.isIncluded(placement, options: filter) else { continue }
-                // Off-Space windows cannot be double-checked through Accessibility, so drop untitled ones
-                // (almost always internal helper windows) whenever we are allowed to read titles.
-                if canReadTitles && ((w[kCGWindowName as String] as? String) ?? "").isEmpty { continue }
-                label = windowSpaces.first.flatMap { snap.labels[$0] }
+                let candidate = WindowInfo(id: num, pid: pid, appName: appName, title: title.isEmpty ? appName : title,
+                                           frame: frame, icon: app.icon, placement: placement, spaceLabel: nil)
+                if placement == .orderedOutElsewhere {
+                    // On another desktop and not showing: usually a window the app "closed" to the background
+                    // (Claude, Slack...), which must not be listed. A genuinely minimized / hidden window is
+                    // only listed if Accessibility confirmed it while its desktop was visible (remembered here).
+                    seenHiddenIDs.insert(num)
+                    guard let known = hiddenLabels[num], !known.text.isEmpty else { continue }
+                    label = known.text
+                } else if placement == .hiddenOrMinimized {
+                    seenHiddenIDs.insert(num)
+                    // Only windows Accessibility confirmed as minimized (or whose app is hidden) are listed.
+                    if let known = hiddenLabels[num], !known.text.isEmpty { label = known.text }
+                    else { unlabeledCandidates.append(candidate); continue }
+                } else {
+                    // Other-desktop windows cannot be double-checked through Accessibility, so drop untitled ones
+                    // (almost always internal helper windows) whenever we are allowed to read titles.
+                    if canReadTitles && ((w[kCGWindowName as String] as? String) ?? "").isEmpty { continue }
+                    label = windowSpaces.first.flatMap { snap.labels[$0] }
+                }
             }
             out.append(WindowInfo(id: num, pid: pid, appName: appName, title: title.isEmpty ? appName : title,
                                   frame: frame, icon: app.icon, placement: placement, spaceLabel: label))
@@ -131,6 +171,39 @@ final class WindowInventory {
                     guard let self else { return }
                     self.titleCache.merge(found) { _, new in new }
                     self.titleRefreshInFlight = false
+                }
+            }
+        }
+    }
+
+    /// Decide, off the main thread, which "not drawn" windows are really minimized (or belong to a hidden app).
+    private func refreshHiddenLabelsInBackground() {
+        let o = options()
+        guard o.includeMinimized, !hiddenRefreshInFlight, AXIsProcessTrusted() else { return }
+        _ = rawWindows(includeOtherSpaces: true, filter: SpaceFilterOptions())    // fills unlabeledCandidates
+        let now = Date()
+        // Forget labels for windows that are no longer candidates (they were restored or closed), and
+        // retry "not real" verdicts after a few seconds, since a window can be minimized later.
+        hiddenLabels = hiddenLabels.filter { seenHiddenIDs.contains($0.key) && ($0.value.text.isEmpty ? now.timeIntervalSince($0.value.when) < 5 : true) }
+        let todo = unlabeledCandidates.filter { hiddenLabels[$0.id] == nil }
+        guard !todo.isEmpty else { return }
+        hiddenRefreshInFlight = true
+        let finder = self.finder
+        let hiddenPIDs = Set(NSWorkspace.shared.runningApplications.filter(\.isHidden).map(\.processIdentifier))
+        DispatchQueue.global(qos: .utility).async {
+            var found: [CGWindowID: HiddenLabel] = [:]
+            for w in todo {
+                var text = ""
+                if hiddenPIDs.contains(w.pid) { text = "Hidden" }
+                else if let ax = finder.find(pid: w.pid, windowID: w.id, frame: w.frame, title: w.title),
+                        AX.bool(ax, kAXMinimizedAttribute) == true { text = "Minimized" }
+                found[w.id] = HiddenLabel(text: text, when: Date())
+            }
+            DispatchQueue.main.async { [weak self] in
+                MainActor.assumeIsolated {
+                    guard let self else { return }
+                    self.hiddenLabels.merge(found) { _, new in new }
+                    self.hiddenRefreshInFlight = false
                 }
             }
         }

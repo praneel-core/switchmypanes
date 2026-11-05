@@ -13,6 +13,8 @@ final class SettingsStore: ObservableObject {
     @Published var includeOtherDesktops: Bool { didSet { d.set(includeOtherDesktops, forKey: "includeOtherDesktops") } }
     /// Option+Tab also lists full-screen apps (each lives on its own Space).
     @Published var includeFullScreen: Bool { didSet { d.set(includeFullScreen, forKey: "includeFullScreen") } }
+    /// Option+Tab also lists minimized windows and windows of hidden (Cmd+H) apps.
+    @Published var includeMinimized: Bool { didSet { d.set(includeMinimized, forKey: "includeMinimized") } }
     /// After snapping to a half, offer the other windows for the empty half.
     @Published var snapAssistEnabled: Bool { didSet { d.set(snapAssistEnabled, forKey: "snapAssistEnabled") } }
     /// Option+Z opens the Snap Layouts picker.
@@ -27,7 +29,7 @@ final class SettingsStore: ObservableObject {
     @Published var paused = false
 
     private init() {
-        d.register(defaults: ["switcherEnabled": true, "snapEnabled": true, "dragSnapEnabled": true, "layoutsEnabled": true, "snapAssistEnabled": true, "includeOtherDesktops": true, "includeFullScreen": true, "gap": 0.0,
+        d.register(defaults: ["switcherEnabled": true, "snapEnabled": true, "dragSnapEnabled": true, "layoutsEnabled": true, "snapAssistEnabled": true, "includeOtherDesktops": true, "includeFullScreen": true, "includeMinimized": true, "gap": 0.0,
                               "snapModifiers": ShortcutModifiers([.control, .option]).rawValue])
         switcherEnabled = d.bool(forKey: "switcherEnabled")
         snapEnabled = d.bool(forKey: "snapEnabled")
@@ -36,12 +38,14 @@ final class SettingsStore: ObservableObject {
         snapAssistEnabled = d.bool(forKey: "snapAssistEnabled")
         includeOtherDesktops = d.bool(forKey: "includeOtherDesktops")
         includeFullScreen = d.bool(forKey: "includeFullScreen")
+        includeMinimized = d.bool(forKey: "includeMinimized")
         snapModifiers = ShortcutModifiers(rawValue: d.integer(forKey: "snapModifiers"))
         gap = d.double(forKey: "gap")
     }
 
     var spaceFilter: SpaceFilterOptions {
-        SpaceFilterOptions(includeOtherDesktops: includeOtherDesktops, includeFullScreen: includeFullScreen)
+        SpaceFilterOptions(includeOtherDesktops: includeOtherDesktops, includeFullScreen: includeFullScreen,
+                           includeMinimized: includeMinimized)
     }
 
     var config: ShortcutConfig {
@@ -50,7 +54,7 @@ final class SettingsStore: ObservableObject {
     }
 
     func resetToDefaults() {
-        switcherEnabled = true; snapEnabled = true; dragSnapEnabled = true; layoutsEnabled = true; snapAssistEnabled = true; includeOtherDesktops = true; includeFullScreen = true; gap = 0
+        switcherEnabled = true; snapEnabled = true; dragSnapEnabled = true; layoutsEnabled = true; snapAssistEnabled = true; includeOtherDesktops = true; includeFullScreen = true; includeMinimized = true; gap = 0
         snapModifiers = [.control, .option]
     }
 }

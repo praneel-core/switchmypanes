@@ -92,9 +92,9 @@ final class SwitcherController {
     func close(at index: Int) {
         guard isActive, index >= 0, index < windows.count else { return }
         let target = windows[index]
-        guard activator.close(target) else { NSSound.beep(); return }   // other desktop, or no close button
+        guard activator.close(target) else { NSSound.beep(); return }   // window not found, or it has no close button
         // The app may ask "Save changes?" and keep the window, so only drop the tile once it is really gone.
-        for delay in [0.25, 0.7] {
+        for delay in target.isOnAnotherSpace ? [1.0, 1.8, 2.8] : [0.25, 0.7] {   // a desktop switch takes a moment
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in self?.removeIfGone(target.id) }
         }
     }
