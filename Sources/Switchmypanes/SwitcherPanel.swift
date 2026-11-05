@@ -2,9 +2,9 @@ import AppKit
 
 /// How big the tiles are and how many fit on the screen.
 struct SwitcherLayout {
-    static let baseTile = NSSize(width: 220, height: 168)
-    static let spacing: CGFloat = 12
-    static let padding: CGFloat = 20
+    static let baseTile = NSSize(width: 236, height: 194)
+    static let spacing: CGFloat = 14
+    static let padding: CGFloat = 24
 
     let scale: CGFloat
     let columns: Int
@@ -19,7 +19,8 @@ struct SwitcherLayout {
     /// Layout that fits inside `bounds` (a screen, or just the empty half for Snap Assist).
     static func plan(count: Int, bounds: CGSize, widthFraction: CGFloat, heightFraction: CGFloat) -> SwitcherLayout {
         let maxW = bounds.width * widthFraction - 2 * padding
-        let maxH = bounds.height * heightFraction - 2 * padding - 30   // 30 = caption line
+        // room for the caption line and the hint bar as well
+        let maxH = bounds.height * heightFraction - 2 * padding - OverlayTheme.captionHeight - OverlayTheme.hintBarHeight
         var best = SwitcherLayout(scale: 0.5, columns: 1, rows: 1, capacity: 1)
         for scale in [1.0, 0.85, 0.7, 0.55, 0.45] as [CGFloat] {
             let tw = baseTile.width * scale, th = baseTile.height * scale
@@ -39,18 +40,20 @@ final class FirstClickButton: NSButton {
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 }
 
-/// One window in the overlay: thumbnail (or app icon), app icon badge, title.
+/// One window in the overlay: a framed thumbnail (or the app icon), a tag for other desktops / minimized windows,
+/// and the app icon with the window title and app name underneath.
 final class WindowTileView: NSView {
     let index: Int
     let windowID: CGWindowID
+    private let thumbFrame = NSView()                 // rounded, bordered picture frame
     private let thumb = NSImageView()
     private let badge = NSImageView()
-    private let label: NSTextField
+    private let titleLabel: NSTextField
+    private let appLabel: NSTextField
     private let closeButton = FirstClickButton()
-    private let canClose: Bool
-    private let pill = NSTextField(labelWithString: "")     // "Desktop 2" / "Full screen"
+    private let tagView: TagView?
     private let icon: NSImage?
-    private var hasThumbnail = false
+    private let hasDistinctTitle: Bool
     var onClick: ((Int) -> Void)?
     var onHover: ((Int) -> Void)?
     var onClose: ((Int) -> Void)?
@@ -58,25 +61,42 @@ final class WindowTileView: NSView {
     var isSelected = false { didSet { refreshAppearance() } }
 
     init(frame: NSRect, index: Int, info: WindowInfo, thumbnail: NSImage?) {
-        self.index = index; self.windowID = info.id; self.icon = info.icon; self.canClose = true
-        label = NSTextField(labelWithString: info.title)
+        self.index = index; self.windowID = info.id; self.icon = info.icon
+        hasDistinctTitle = info.title != info.appName
+        titleLabel = NSTextField(labelWithString: hasDistinctTitle ? info.title : info.appName)
+        appLabel = NSTextField(labelWithString: info.appName)
+        tagView = info.spaceLabel.map { TagView($0) }
         super.init(frame: frame)
         wantsLayer = true
-        layer?.cornerRadius = 12
-        layer?.borderWidth = 0
 
+        thumbFrame.wantsLayer = true
+        thumbFrame.layer?.cornerRadius = 12
+        thumbFrame.layer?.masksToBounds = true
+        thumbFrame.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.32).cgColor
+        thumbFrame.layer?.borderWidth = 1
         thumb.imageAlignment = .alignCenter
         thumb.imageScaling = .scaleProportionallyUpOrDown
-        thumb.wantsLayer = true
-        thumb.layer?.cornerRadius = 6
-        thumb.layer?.masksToBounds = true
+        thumbFrame.addSubview(thumb)
+
         badge.image = info.icon
         badge.imageScaling = .scaleProportionallyUpOrDown
-        label.lineBreakMode = .byTruncatingTail
-        label.font = .systemFont(ofSize: 12, weight: .medium)
-        label.textColor = .labelColor
-        label.toolTip = "\(info.appName) — \(info.title)"
-        addSubview(thumb); addSubview(badge); addSubview(label)
+        badge.wantsLayer = true
+        badge.shadow = {
+            let s = NSShadow(); s.shadowBlurRadius = 4; s.shadowOffset = NSSize(width: 0, height: -1)
+            s.shadowColor = NSColor.black.withAlphaComponent(0.35); return s
+        }()
+
+        titleLabel.lineBreakMode = .byTruncatingTail
+        titleLabel.font = .systemFont(ofSize: 12.5, weight: .semibold)
+        appLabel.lineBreakMode = .byTruncatingTail
+        appLabel.font = .systemFont(ofSize: 10.5, weight: .regular)
+        appLabel.isHidden = !hasDistinctTitle
+        let tip = "\(info.appName) — \(info.title)" + (info.spaceLabel.map { " (\($0))" } ?? "")
+        titleLabel.toolTip = tip
+
+        addSubview(thumbFrame); addSubview(badge); addSubview(titleLabel); addSubview(appLabel)
+        if let tagView { addSubview(tagView) }
+
         // Close button: appears while the mouse is over the tile (for a window on another desktop it first switches there).
         closeButton.isBordered = false
         closeButton.imagePosition = .imageOnly
@@ -88,20 +108,8 @@ final class WindowTileView: NSView {
         closeButton.action = #selector(closeTapped)
         closeButton.isHidden = true
         addSubview(closeButton)
-        if let space = info.spaceLabel {
-            pill.stringValue = " \(space) "
-            pill.font = .systemFont(ofSize: 10, weight: .semibold)
-            pill.textColor = .white
-            pill.drawsBackground = true
-            pill.backgroundColor = NSColor.black.withAlphaComponent(0.65)
-            pill.wantsLayer = true
-            pill.layer?.cornerRadius = 4
-            pill.layer?.masksToBounds = true
-            pill.sizeToFit()
-            addSubview(pill)
-            label.toolTip = "\(info.appName) — \(info.title) (\(space))"
-        }
-        if let thumbnail { setThumbnail(thumbnail) } else { thumb.image = icon; thumb.alphaValue = 0.85 }
+
+        if let thumbnail { setThumbnail(thumbnail) } else { showIconPlaceholder() }
         addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .mouseMoved, .activeAlways, .inVisibleRect],
                                        owner: self, userInfo: nil))
         refreshAppearance()
@@ -110,33 +118,48 @@ final class WindowTileView: NSView {
 
     override func layout() {
         super.layout()
-        let pad: CGFloat = 10
-        let iconSize = max(16, bounds.height * 0.14)
-        let footer = iconSize + 6
-        thumb.frame = NSRect(x: pad, y: footer + pad, width: bounds.width - 2 * pad, height: bounds.height - footer - 2 * pad)
-        badge.frame = NSRect(x: pad, y: pad - 2, width: iconSize, height: iconSize)
-        closeButton.frame = NSRect(x: thumb.frame.minX + 4, y: thumb.frame.maxY - 26, width: 22, height: 22)
-        if !pill.stringValue.isEmpty {
-            pill.frame.origin = NSPoint(x: bounds.maxX - pad - pill.frame.width - 4, y: bounds.maxY - pad - pill.frame.height - 4)
+        let pad: CGFloat = 12
+        let footerH = max(34, bounds.height * 0.2)
+        let thumbRect = NSRect(x: pad, y: footerH + 6, width: bounds.width - 2 * pad, height: bounds.height - footerH - 6 - pad + 2)
+        thumbFrame.frame = thumbRect
+        thumb.frame = thumbFrame.bounds.insetBy(dx: 1, dy: 1)
+        if thumb.image === icon { thumb.frame = thumbFrame.bounds.insetBy(dx: thumbRect.width * 0.28, dy: thumbRect.height * 0.12) }
+
+        let iconSize = min(30, footerH - 6)
+        badge.frame = NSRect(x: pad, y: (footerH - iconSize) / 2 + 1, width: iconSize, height: iconSize)
+        let textX = pad + iconSize + 8, textW = bounds.width - textX - pad
+        if hasDistinctTitle {
+            titleLabel.frame = NSRect(x: textX, y: footerH / 2 + 0, width: textW, height: 16)
+            appLabel.frame = NSRect(x: textX, y: footerH / 2 - 15, width: textW, height: 14)
+        } else {
+            titleLabel.frame = NSRect(x: textX, y: (footerH - 16) / 2 + 1, width: textW, height: 16)
         }
-        label.frame = NSRect(x: pad + iconSize + 6, y: pad - 2 + (iconSize - 16) / 2, width: bounds.width - 2 * pad - iconSize - 6, height: 16)
+        closeButton.frame = NSRect(x: thumbRect.minX + 8, y: thumbRect.maxY - 30, width: 22, height: 22)
+        if let tagView { tagView.frame.origin = NSPoint(x: thumbRect.maxX - tagView.frame.width - 8, y: thumbRect.maxY - tagView.frame.height - 8) }
     }
 
     func setThumbnail(_ image: NSImage) {
-        hasThumbnail = true
         thumb.image = image
         thumb.alphaValue = 1
+        needsLayout = true
+    }
+
+    /// No picture yet (a window that was never visible, or no Screen Recording permission): a big, soft app icon.
+    private func showIconPlaceholder() {
+        thumb.image = icon
+        thumb.alphaValue = 0.9
+        needsLayout = true
     }
 
     private func refreshAppearance() {
-        layer?.backgroundColor = isSelected ? NSColor.white.withAlphaComponent(0.20).cgColor : NSColor.clear.cgColor
-        layer?.borderColor = NSColor.controlAccentColor.cgColor
-        layer?.borderWidth = isSelected ? 3 : 0
+        thumbFrame.layer?.borderColor = (isSelected ? NSColor.white.withAlphaComponent(0.38) : NSColor.white.withAlphaComponent(0.14)).cgColor
+        titleLabel.textColor = isSelected ? .white : NSColor.white.withAlphaComponent(0.86)
+        appLabel.textColor = NSColor.white.withAlphaComponent(isSelected ? 0.66 : 0.48)
     }
 
     override func mouseDown(with event: NSEvent) { onClick?(index) }
     override func mouseMoved(with event: NSEvent) { onHover?(index) }
-    override func mouseEntered(with event: NSEvent) { onHover?(index); closeButton.isHidden = !canClose }
+    override func mouseEntered(with event: NSEvent) { onHover?(index); closeButton.isHidden = false }
     override func mouseExited(with event: NSEvent) { closeButton.isHidden = true }
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
     @objc private func closeTapped() { onClose?(index) }
@@ -148,73 +171,92 @@ final class SwitcherPanel: NSPanel {
     override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
 
-    private let background = NSVisualEffectView()
+    private let glass = OverlayTheme.makeGlass()
+    private let ring = NSView()                          // the highlight that slides to the selected tile
+    private let hintBar = HintBarView()
     private var tiles: [WindowTileView] = []
     private var captionLabel: NSTextField?
     private var initialMouse = NSPoint.zero
+    private var ringPlaced = false
     var onClick: ((Int) -> Void)?
     var onHover: ((Int) -> Void)?
     var onClose: ((Int) -> Void)?
 
     init() {
         super.init(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: true)
-        isFloatingPanel = true
-        level = .popUpMenu
-        hasShadow = true
-        isOpaque = false
-        backgroundColor = .clear
-        hidesOnDeactivate = false
-        animationBehavior = .none
-        // Visible on every Space and above full-screen apps.
-        collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
-        background.material = .hudWindow
-        background.blendingMode = .behindWindow
-        background.state = .active
-        background.wantsLayer = true
-        background.layer?.cornerRadius = 20
-        background.layer?.masksToBounds = true
-        contentView = background
+        let base = OverlayTheme.makePanel()
+        isFloatingPanel = base.isFloatingPanel; level = base.level; hasShadow = true; isOpaque = false
+        backgroundColor = .clear; hidesOnDeactivate = false; animationBehavior = .none
+        collectionBehavior = base.collectionBehavior
+        ring.wantsLayer = true
+        ring.layer?.cornerRadius = 18
+        ring.layer?.backgroundColor = NSColor.white.withAlphaComponent(0.13).cgColor
+        ring.layer?.borderColor = NSColor.controlAccentColor.cgColor
+        ring.layer?.borderWidth = 2.5
+        contentView = glass
     }
 
+    /// - Parameters:
+    ///   - hints: keyboard hints for the bottom bar
+    ///   - show: false = lay everything out but do not put the panel on screen (used to render pictures of it)
     func present(windows: [WindowInfo], layout: SwitcherLayout, selected: Int, on screen: NSScreen,
-                 caption: String? = nil, center: NSPoint? = nil, thumbnail: (CGWindowID) -> NSImage?) {
+                 caption: String? = nil, hints: [Hint] = [], center: NSPoint? = nil, show: Bool = true,
+                 thumbnail: (CGWindowID) -> NSImage?) {
+        let wasVisible = isVisible
         tiles.forEach { $0.removeFromSuperview() }
         tiles.removeAll()
         captionLabel?.removeFromSuperview(); captionLabel = nil
+        ring.removeFromSuperview(); hintBar.removeFromSuperview()
         initialMouse = NSEvent.mouseLocation
+        ringPlaced = false
 
         let tile = layout.tile, sp = SwitcherLayout.spacing, pad = SwitcherLayout.padding
-        let header: CGFloat = caption == nil ? 0 : 30
-        let size = NSSize(width: max(CGFloat(layout.columns) * tile.width + CGFloat(layout.columns - 1) * sp + 2 * pad, caption == nil ? 0 : 560),
-                          height: CGFloat(layout.rows) * tile.height + CGFloat(layout.rows - 1) * sp + 2 * pad + header)
+        let header: CGFloat = caption == nil ? 0 : OverlayTheme.captionHeight
+        let footer: CGFloat = hints.isEmpty ? 0 : OverlayTheme.hintBarHeight
         let gridWidth = CGFloat(layout.columns) * tile.width + CGFloat(layout.columns - 1) * sp
-        let leftInset = (size.width - gridWidth) / 2
+        let width = max(gridWidth + 2 * pad, hints.isEmpty ? 0 : HintBarView.preferredWidth(for: hints) + 2 * pad,
+                        caption == nil ? 0 : 520)
+        let height = CGFloat(layout.rows) * tile.height + CGFloat(layout.rows - 1) * sp + 2 * pad + header + footer
+        let leftInset = (width - gridWidth) / 2
+        glass.setFrameSize(NSSize(width: width, height: height))
+
+        glass.addSubview(ring)
         for (i, w) in windows.enumerated() {
             let row = i / layout.columns, col = i % layout.columns
+            // An incomplete last row is centred, which looks tidier than hugging the left edge.
+            let inRow = min(layout.columns, windows.count - row * layout.columns)
+            let rowInset = (gridWidth - (CGFloat(inRow) * tile.width + CGFloat(inRow - 1) * sp)) / 2
             // Row 0 is at the top, but AppKit's origin is bottom-left.
-            let origin = NSPoint(x: leftInset + CGFloat(col) * (tile.width + sp),
-                                 y: size.height - pad - header - tile.height - CGFloat(row) * (tile.height + sp))
+            let origin = NSPoint(x: leftInset + rowInset + CGFloat(col) * (tile.width + sp),
+                                 y: height - pad - header - tile.height - CGFloat(row) * (tile.height + sp))
             let v = WindowTileView(frame: NSRect(origin: origin, size: tile), index: i, info: w, thumbnail: thumbnail(w.id))
             v.onClick = { [weak self] in self?.onClick?($0) }
             v.onClose = { [weak self] in self?.onClose?($0) }
             v.onHover = { [weak self] idx in self?.hoverIfMouseMoved(idx) }
-            v.isSelected = (i == selected)
-            background.addSubview(v)
+            glass.addSubview(v)
             tiles.append(v)
         }
         if let caption {
             let l = NSTextField(labelWithString: caption)
-            l.font = .systemFont(ofSize: 13, weight: .medium)
-            l.textColor = .secondaryLabelColor
+            l.font = .systemFont(ofSize: 13, weight: .semibold)
+            l.textColor = NSColor.white.withAlphaComponent(0.78)
             l.alignment = .center
-            l.frame = NSRect(x: pad, y: size.height - pad - 18, width: size.width - 2 * pad, height: 18)
-            background.addSubview(l)
+            l.frame = NSRect(x: pad, y: height - pad - 20, width: width - 2 * pad, height: 18)
+            glass.addSubview(l)
             captionLabel = l
         }
+        if !hints.isEmpty {
+            hintBar.hints = hints
+            hintBar.frame = NSRect(x: 0, y: 6, width: width, height: footer - 6)
+            glass.addSubview(hintBar)
+        }
+        setSelected(selected, animated: false)
+
         let vf = screen.visibleFrame
         let c = center ?? NSPoint(x: vf.midX, y: vf.midY)
-        setFrame(NSRect(x: c.x - size.width / 2, y: c.y - size.height / 2, width: size.width, height: size.height), display: true)
-        orderFrontRegardless()
+        setFrame(NSRect(x: c.x - width / 2, y: c.y - height / 2, width: width, height: height), display: true)
+        guard show else { return }
+        if wasVisible { orderFrontRegardless() } else { OverlayTheme.fadeIn(self) }
     }
 
     /// Ignore "hover" caused by the overlay appearing under a mouse that is not moving.
@@ -224,11 +266,29 @@ final class SwitcherPanel: NSPanel {
         onHover?(index)
     }
 
-    func setSelected(_ index: Int) { for t in tiles { t.isSelected = (t.index == index) } }
+    /// Moves the highlight to a tile. It slides (a short ease-out) unless Reduce motion is on.
+    func setSelected(_ index: Int, animated: Bool = true) {
+        for t in tiles { t.isSelected = (t.index == index) }
+        guard let target = tiles.first(where: { $0.index == index }) else { return }
+        let frame = target.frame.insetBy(dx: -3, dy: -3)
+        if animated && ringPlaced && OverlayTheme.motionEnabled {
+            NSAnimationContext.runAnimationGroup { ctx in
+                ctx.duration = 0.13
+                ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
+                ring.animator().frame = frame
+            }
+        } else {
+            ring.frame = frame
+        }
+        ringPlaced = true
+    }
 
     func setThumbnail(_ image: NSImage, for id: CGWindowID) {
         tiles.first { $0.windowID == id }?.setThumbnail(image)
     }
+
+    /// The panel's picture, for tests and previews (`--render-overlay`).
+    var contentSnapshotView: NSView { glass }
 
     func dismiss() {
         orderOut(nil)

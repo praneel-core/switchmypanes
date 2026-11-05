@@ -10,6 +10,7 @@ if CommandLine.arguments.contains("--help") || CommandLine.arguments.contains("-
       --list-windows            print the windows the switcher would show (app, title, desktop / minimized status,
                                 whether a preview could be captured), then exit. No side effects.
           --exclude=<bundle id> also apply a "hide from switcher" exclusion (repeatable), to test the rule.
+      --render-overlay <folder> draw the overlays offscreen with sample windows into PNG files (no side effects).
       --selftest-linked         test linked resizing against helper processes (normal, stubborn and slow apps, and the
                                 hover behaviour). Opens nearly invisible helper windows in the bottom-right corner for
                                 about a minute. Prints PASS / FAIL.
@@ -19,6 +20,17 @@ if CommandLine.arguments.contains("--help") || CommandLine.arguments.contains("-
 
     Environment: SWITCHMYPANES_DEBUG=1 logs what linked resizing is doing to the terminal.
     """)
+    exit(0)
+}
+
+// `Switchmypanes --render-overlay <folder>`: draws the overlays offscreen, with sample windows, into PNG files.
+if let i = CommandLine.arguments.firstIndex(of: "--render-overlay") {
+    let folder = CommandLine.arguments.dropFirst(i + 1).first ?? "overlay-previews"
+    MainActor.assumeIsolated {
+        _ = NSApplication.shared
+        OverlayPreview.render(to: URL(fileURLWithPath: folder))
+    }
+    print("rendered to \(folder)")
     exit(0)
 }
 

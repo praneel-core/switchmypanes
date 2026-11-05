@@ -40,6 +40,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, KeyboardMonitorDelegat
         monitor.delegate = self
         monitor.isSuspended = { [settings] in settings.isRecordingShortcut }
         switcher.requiredModifierFlags = { [settings] in settings.switcherModifier.cgFlags }
+        switcher.modifierSymbol = { [settings] in ShortcutDisplay.symbols(settings.switcherModifier) }
         monitor.configProvider = { [settings] in settings.config }
         thumbnails.isAllowed = { [weak self] id in
             guard let self else { return true }
@@ -97,7 +98,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, KeyboardMonitorDelegat
             w.styleMask = [.titled, .closable, .resizable]      // scrolls: there are many settings
             w.isReleasedWhenClosed = false
             let room = (NSScreen.main?.visibleFrame.height ?? 800) - 80
-            w.setContentSize(NSSize(width: 560, height: min(700, max(420, room))))
+            w.setContentSize(NSSize(width: 620, height: min(580, max(440, room))))
             preferencesWindow = w
         }
         NSApp.activate(ignoringOtherApps: true)

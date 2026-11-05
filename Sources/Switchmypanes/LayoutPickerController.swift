@@ -139,8 +139,8 @@ final class LayoutPickerController {
         if available.count > plan.capacity { available = Array(available.prefix(plan.capacity)) }
         windowColumns = plan.columns
         windowSelection = SwitcherSelection(count: available.count); windowSelection.select(0)   // frontmost window first
-        let caption = "Area \(zoneIndex + 1) of \(layout.zones.count) (outlined)  ·  Return to place  ·  Space to skip  ·  Esc to stop"
-        windowPanel.present(windows: available, layout: plan, selected: 0, on: screen, caption: caption,
+        let caption = "Choose a window for the outlined area (\(zoneIndex + 1) of \(layout.zones.count))"
+        windowPanel.present(windows: available, layout: plan, selected: 0, on: screen, caption: caption, hints: .layoutWindow,
                             thumbnail: { [thumbnails] in thumbnails.cached($0) })
         if refreshThumbnails {
             thumbnails.refresh(windowIDs: available.map(\.id)) { [weak self] id, image in

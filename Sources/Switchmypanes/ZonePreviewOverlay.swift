@@ -19,12 +19,17 @@ final class ZonePreviewOverlay {
         panel.animationBehavior = .none
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
 
+        // A soft accent-tinted glass rectangle with a fine bright edge.
         let box = NSView()
         box.wantsLayer = true
-        box.layer?.cornerRadius = 12
-        box.layer?.backgroundColor = NSColor.controlAccentColor.withAlphaComponent(0.22).cgColor
-        box.layer?.borderColor = NSColor.controlAccentColor.withAlphaComponent(0.85).cgColor
-        box.layer?.borderWidth = 3
+        box.layer?.cornerRadius = 16
+        box.layer?.backgroundColor = NSColor.controlAccentColor.withAlphaComponent(0.20).cgColor
+        box.layer?.borderColor = NSColor.controlAccentColor.withAlphaComponent(0.90).cgColor
+        box.layer?.borderWidth = 2.5
+        box.layer?.shadowColor = NSColor.controlAccentColor.cgColor
+        box.layer?.shadowOpacity = 0.45
+        box.layer?.shadowRadius = 14
+        box.layer?.shadowOffset = .zero
         panel.contentView = box
     }
 
