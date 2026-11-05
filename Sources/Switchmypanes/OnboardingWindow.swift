@@ -33,7 +33,7 @@ final class OnboardingWindowController: NSWindowController {
                 pane: .accessibility, request: PermissionManager.requestAccessibility, isGranted: { $0.accessibility }),
             Row(title: "Input Monitoring", why: "Lets Switchmypanes notice its own shortcuts (Option+Tab and the snap keys). It only checks whether a key is one of those; it never reads, stores or sends what you type. Required.",
                 pane: .inputMonitoring, request: PermissionManager.requestInputMonitoring, isGranted: { $0.inputMonitoring }),
-            Row(title: "Screen Recording", why: "Only used to draw the small window previews in the Option+Tab overlay. Optional: without it you still get app icons and titles. Nothing is saved or sent anywhere.",
+            Row(title: "Screen Recording", why: "Only used for the small window previews in the Option+Tab overlay: pictures are taken when you open the overlay, and (switch-off-able in Preferences) of a window when you leave it, so other desktops have previews. Password managers are never captured. Pictures stay in memory; nothing is saved or sent. Optional: without it you get app icons and titles.",
                 pane: .screenRecording, request: PermissionManager.requestScreenRecording, isGranted: { $0.screenRecording }),
         ]
 

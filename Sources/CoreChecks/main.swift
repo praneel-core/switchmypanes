@@ -362,5 +362,24 @@ do {
     eq(kd(13, .option, active: false), .passThrough, "Option+W outside the switcher is untouched")
 }
 
+section("Preview policy")
+do {
+    let ex = PreviewPolicy.defaultExcludedApps
+    check(PreviewPolicy.isExcluded(bundleID: "com.1password.1password", excluded: ex), "1Password (wildcard)")
+    check(PreviewPolicy.isExcluded(bundleID: "com.agilebits.onepassword7", excluded: ex), "1Password 7 (older ID)")
+    check(PreviewPolicy.isExcluded(bundleID: "com.apple.keychainaccess", excluded: ex), "Keychain Access (exact)")
+    check(PreviewPolicy.isExcluded(bundleID: "COM.APPLE.PASSWORDS", excluded: ex), "case-insensitive")
+    check(!PreviewPolicy.isExcluded(bundleID: "com.apple.Safari", excluded: ex), "Safari is not excluded")
+    check(!PreviewPolicy.isExcluded(bundleID: "com.apple.keychainaccessory", excluded: ["com.apple.keychainaccess"]), "exact means exact")
+    check(!PreviewPolicy.isExcluded(bundleID: nil, excluded: ex), "no bundle ID: not excluded")
+    check(!PreviewPolicy.isExcluded(bundleID: "com.1password.x", excluded: []), "empty list excludes nothing")
+    func a(_ enabled: Bool = true, paused: Bool = false, locked: Bool = false, idle: Double = 5, low: Bool = false) -> Bool {
+        PreviewPolicy.allowsAutomaticCapture(enabled: enabled, paused: paused, screenLocked: locked, idleSeconds: idle, lowPowerMode: low)
+    }
+    check(a(), "normal use: allowed")
+    check(!a(false), "switched off"); check(!a(paused: true), "paused"); check(!a(locked: true), "screen locked")
+    check(!a(idle: 120), "idle for two minutes"); check(!a(low: true), "low power mode"); check(a(idle: 60), "exactly at the idle limit is fine")
+}
+
 print("\n\(total - failures)/\(total) checks passed")
 exit(failures == 0 ? 0 : 1)

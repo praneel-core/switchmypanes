@@ -8,19 +8,24 @@ final class ThumbnailService {
     private var cache: [CGWindowID: NSImage] = [:]
     private var cachedAt: [CGWindowID: Date] = [:]
     private var currentTask: Task<Void, Never>?
-    private var backgroundTask: Task<Void, Never>?
+    private var inFlight: Set<CGWindowID> = []
     private let maxCached = 60
 
     var hasPermission: Bool { CGPreflightScreenCaptureAccess() }
 
+    /// Windows of apps on the "never take previews" list. Enforced here, in ONE place: no picture is captured,
+    /// and none already in memory is ever shown. Set by the app from the user's settings.
+    var isAllowed: (CGWindowID) -> Bool = { _ in true }
+
     /// The most recent thumbnail we have (may be from an earlier time the switcher opened).
-    func cached(_ id: CGWindowID) -> NSImage? { cache[id] }
+    func cached(_ id: CGWindowID) -> NSImage? { isAllowed(id) ? cache[id] : nil }
 
     /// Capture fresh thumbnails for these windows; `update` is called on the main thread as each one arrives.
     func refresh(windowIDs: [CGWindowID], maxPixelWidth: Int = 480,
                  update: @escaping @MainActor (CGWindowID, NSImage) -> Void) {
         currentTask?.cancel()
         guard hasPermission else { return }
+        let windowIDs = windowIDs.filter(isAllowed)
         currentTask = Task { [weak self] in
             guard let content = try? await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true) else { return }
             let byID = Dictionary(content.windows.map { ($0.windowID, $0) }, uniquingKeysWith: { a, _ in a })
@@ -41,21 +46,24 @@ final class ThumbnailService {
 
     func cancel() { currentTask?.cancel() }
 
-    /// macOS cannot capture a window that is not showing (another desktop, a full-screen app you left), so
-    /// the overlay can only show the LAST picture we took while it was visible. To always have one, this takes
-    /// pictures of the windows that are visible right now, quietly, at most once per `minInterval` per window.
-    /// Pictures live in memory only: nothing is written to disk or sent anywhere.
-    func captureInBackground(windowIDs: [CGWindowID], minInterval: TimeInterval = 15) {
-        guard hasPermission, backgroundTask == nil else { return }
+    /// macOS cannot capture a window that is not showing (another desktop, a full-screen app you left), so the
+    /// overlay can only show the LAST picture we took while it was visible. `PreviewKeeper` calls this at a few
+    /// well-chosen moments (when you leave a window, and once you have settled into one). Pictures live in memory
+    /// only: nothing is written to disk or sent anywhere.
+    func captureInBackground(windowIDs: [CGWindowID], minInterval: TimeInterval) {
+        guard hasPermission else { return }
         let now = Date()
-        let due = windowIDs.filter { now.timeIntervalSince(cachedAt[$0] ?? .distantPast) >= minInterval }
+        let due = windowIDs.filter {
+            isAllowed($0) && !inFlight.contains($0) && now.timeIntervalSince(cachedAt[$0] ?? .distantPast) >= minInterval
+        }
         guard !due.isEmpty else { return }
-        backgroundTask = Task { [weak self] in
-            defer { self?.backgroundTask = nil }
+        inFlight.formUnion(due)
+        Task { [weak self] in
+            defer { self?.inFlight.subtract(due) }
             guard let content = try? await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true) else { return }
             let byID = Dictionary(content.windows.map { ($0.windowID, $0) }, uniquingKeysWith: { a, _ in a })
             for id in due {
-                guard !Task.isCancelled, let scWindow = byID[id] else { continue }
+                guard let scWindow = byID[id] else { continue }
                 guard let cg = await Self.capture(scWindow, maxPixelWidth: 480), let self else { continue }
                 self.store(NSImage(cgImage: cg, size: NSSize(width: cg.width, height: cg.height)), for: id)
             }

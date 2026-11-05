@@ -21,8 +21,11 @@ Free, local only: no accounts, no network calls, no analytics. Phase 1 of 3: see
 - **Other desktops and full-screen apps**: the overlay also lists windows on other desktops (Spaces) and full-screen
   apps, each with a small "Desktop 2" / "Full screen" tag. Choosing one makes macOS switch to that desktop.
   Both can be turned off in Preferences. macOS cannot capture a window that is not showing, so these tiles show the last picture
-  taken while the window was visible. To have one ready, Switchmypanes quietly takes a picture of each visible
-  window every 15 seconds or so (kept in memory only, never saved or sent). A window that has not been visible since
+  taken while the window was visible. To have one ready, Switchmypanes takes a picture of a window when you *leave*
+  it, and once after you have settled into it (plus a slow refresh if you stay a long time). There is no timer
+  polling every window. It does nothing while the screen is locked, you are idle, Low Power Mode is on, or it is
+  switched off in Preferences, and it never captures apps on the "never take previews" list (password managers by
+  default). Pictures are kept in memory only, never saved or sent. A window that has not been visible since
   Switchmypanes started shows its app icon until you visit it.
 - **Snap Layouts** (**Option+Z**): pick one of nine layouts (halves, thirds, three columns, 2×2 grid, ...) with the
   arrow keys + Return, the digits 1–9, or the mouse. Then, for each area in turn (outlined on screen), pick a window;
@@ -104,4 +107,5 @@ No automated tests can click macOS permission dialogs; see the manual test check
 16. Closing: open the overlay with 3+ windows (use throwaway windows, e.g. new Finder windows). Hover a tile: a red ✕ appears; click it: the window closes and the overlay re-flows. Press Option+Tab, Tab to a window, press Delete (then W): same. Try a TextEdit document with unsaved text: the save sheet appears and the tile stays. Close every window: the overlay should disappear on its own. Tiles for other desktops should show no ✕ and beep on Delete.
 17. Minimized/hidden: minimize a window (yellow button) and hide another app (Cmd+H). Option+Tab lists them tagged "Minimized"/"Hidden"; selecting one brings it back. Quit-to-background apps (close Claude's window with the red button) should NOT appear.
 18. Closing a full-screen window from the overlay (hover ✕) from another desktop: macOS should switch to it, close it, and usually return you. Tell me what you see.
-19. Menu bar: Pause stops all shortcuts; Resume restores; Quit removes the icon.
+19. Previews: work in two windows on desktop 1 for a few seconds each, switch to another desktop, Option+Tab: both should show pictures. In Preferences, add an app to "Never take previews of": its tile should show only the icon. Switch the toggle off and confirm new windows stop getting pictures. If Activity Monitor shows Switchmypanes using noticeable CPU/energy while idle, tell me.
+20. Menu bar: Pause stops all shortcuts; Resume restores; Quit removes the icon.

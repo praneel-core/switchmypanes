@@ -35,8 +35,11 @@ final class WindowInventory {
     private var titleRefreshInFlight = false
     private var timer: Timer?
     private var tick = 0
-    /// Called every few seconds with the windows that are visible right now (used to keep thumbnails fresh).
-    var onVisibleWindows: (([CGWindowID]) -> Void)?
+    /// The front window changed: (the window you just left, if it is still visible; the window you arrived in).
+    var onFrontWindowChanged: ((WindowInfo?, WindowInfo) -> Void)?
+    private var lastFrontID: CGWindowID?
+    private var bundleIDs: [CGWindowID: String] = [:]
+    func bundleID(ofWindow id: CGWindowID) -> String? { bundleIDs[id] }
 
     // Minimized / hidden windows look identical to macOS's window list, so Accessibility tells them apart.
     // That can be slow for a sluggish app, so it runs in the background and the result is cached here.
@@ -63,7 +66,6 @@ final class WindowInventory {
                 self.noteFrontmost()
                 self.tick += 1
                 if self.tick % 2 == 0 { self.refreshHiddenLabelsInBackground() }   // about once a second
-                if self.tick % 10 == 5 { self.onVisibleWindows?(self.rawWindows().map(\.id)) }  // about every 5 seconds
             }
         }
         noteFrontmost()
@@ -78,6 +80,11 @@ final class WindowInventory {
               let top = raw.first(where: { $0.pid == front }) else { return }
         mru.reconcile(live: raw.map(\.id))
         mru.touch(top.id)
+        if top.id != lastFrontID {
+            let left = raw.first { $0.id == lastFrontID }      // nil if it is no longer visible (e.g. you changed desktop)
+            lastFrontID = top.id
+            onFrontWindowChanged?(left, top)
+        }
     }
 
     func markUsed(_ id: CGWindowID) { mru.touch(id) }
@@ -103,6 +110,7 @@ final class WindowInventory {
     private func rawWindows(includeOtherSpaces: Bool = false, filter: SpaceFilterOptions = SpaceFilterOptions()) -> [WindowInfo] {
         unlabeledCandidates.removeAll()
         seenHiddenIDs.removeAll()
+        if bundleIDs.count > 1500 { bundleIDs.removeAll() }   // bound memory; refilled on the next scan
         // With Spaces information we can list ALL windows and decide per window; without it (or when the
         // user wants the current desktop only) we use the public on-screen list: current Space, front to back.
         let snap = includeOtherSpaces ? spaces.snapshot() : nil
@@ -126,6 +134,7 @@ final class WindowInventory {
             var title = (w[kCGWindowName as String] as? String) ?? ""
             if title.isEmpty { title = titleCache[num] ?? "" }
 
+            if let b = app.bundleIdentifier { bundleIDs[num] = b }
             var placement = WindowPlacement.currentSpace
             var label: String?
             let onScreen = snap == nil ? true : ((w[kCGWindowIsOnscreen as String] as? Bool) ?? false)

@@ -9,6 +9,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, KeyboardMonitorDelegat
     private lazy var inventory = WindowInventory(ids: ids, spaces: makeSpaceProvider(),
                                                  options: { [settings] in settings.spaceFilter })
     private let thumbnails = ThumbnailService()
+    private lazy var previewKeeper = PreviewKeeper(thumbnails: thumbnails, settings: settings)
     private lazy var activator = WindowActivator(ids: ids)
     private lazy var switcher = SwitcherController(inventory: inventory, thumbnails: thumbnails, activator: activator)
     private lazy var snapper = SnapController(settings: settings, ids: ids)
@@ -36,10 +37,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, KeyboardMonitorDelegat
 
         monitor.delegate = self
         monitor.configProvider = { [settings] in settings.config }
-        inventory.onVisibleWindows = { [weak self] ids in
-            guard let self, !self.settings.paused, self.settings.switcherEnabled,
-                  !self.switcher.isActive, !self.picker.isActive else { return }
-            self.thumbnails.captureInBackground(windowIDs: ids)
+        thumbnails.isAllowed = { [weak self] id in
+            guard let self else { return true }
+            return !PreviewPolicy.isExcluded(bundleID: self.inventory.bundleID(ofWindow: id), excluded: self.settings.previewExcludedApps)
+        }
+        inventory.onFrontWindowChanged = { [weak self] left, arrived in
+            guard let self, self.settings.switcherEnabled, !self.switcher.isActive, !self.picker.isActive else { return }
+            self.previewKeeper.frontWindowChanged(left: left, arrived: arrived)
         }
         inventory.startTracking()
         dragSnapper.start()
@@ -64,6 +68,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, KeyboardMonitorDelegat
         assist.cancel()
         monitor.stop()
         dragSnapper.stop()
+        previewKeeper.stop()
         inventory.stopTracking()
     }
 

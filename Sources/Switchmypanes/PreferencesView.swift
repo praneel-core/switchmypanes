@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import SwitchmypanesCore
 
@@ -8,6 +9,27 @@ struct PreferencesView: View {
     private func binding(_ m: ShortcutModifiers) -> Binding<Bool> {
         Binding(get: { settings.snapModifiers.contains(m) },
                 set: { on in if on { settings.snapModifiers.insert(m) } else { settings.snapModifiers.remove(m) } })
+    }
+
+    private struct AppChoice { let id: String; let name: String }
+
+    private func runningApps() -> [AppChoice] {
+        NSWorkspace.shared.runningApplications
+            .filter { $0.activationPolicy == .regular && $0.bundleIdentifier != nil }
+            .map { AppChoice(id: $0.bundleIdentifier!, name: $0.localizedName ?? $0.bundleIdentifier!) }
+            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    private func addExcluded(_ bundleID: String) {
+        if !settings.previewExcludedApps.contains(bundleID) { settings.previewExcludedApps.append(bundleID) }
+    }
+
+    /// "1Password" for a bundle ID if the app is installed, otherwise the raw pattern.
+    private func displayName(for entry: String) -> String {
+        if !entry.hasSuffix("*"), let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: entry) {
+            return FileManager.default.displayName(atPath: url.path).replacingOccurrences(of: ".app", with: "")
+        }
+        return entry
     }
 
     var body: some View {
@@ -55,6 +77,35 @@ struct PreferencesView: View {
                 }
                 Text("Modifier + Left / Right = half, Up = maximize, Down = restore or minimize. Left then Up = top-left quarter, and so on. Add Shift to move the window to another display. Dragging: left / right edge = half, top edge = maximize, corners = quarters.")
                     .font(.caption).foregroundStyle(.secondary)
+            }
+            Section("Window previews") {
+                Toggle("Keep previews ready for windows on other desktops", isOn: $settings.keepPreviewsFresh)
+                    .disabled(!settings.switcherEnabled)
+                Text("macOS cannot take a picture of a window that is not showing. With this on, a picture is taken of a window when you leave it, and once after you settle into it (not on a timer, and not while the screen is locked, you are idle, or Low Power Mode is on). Pictures stay in memory; nothing is saved or sent. When off, only windows visible when you open the overlay get a picture.")
+                    .font(.caption).foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Text("Never take previews of")
+                        Spacer()
+                        Menu("Add app…") {
+                            ForEach(runningApps(), id: \.id) { app in
+                                Button(app.name) { addExcluded(app.id) }
+                            }
+                        }.fixedSize()
+                    }
+                    ForEach(settings.previewExcludedApps, id: \.self) { entry in
+                        HStack {
+                            Text(displayName(for: entry)).font(.callout)
+                            Spacer()
+                            Button { settings.previewExcludedApps.removeAll { $0 == entry } } label: { Image(systemName: "minus.circle") }
+                                .buttonStyle(.borderless)
+                        }
+                    }
+                    if settings.previewExcludedApps != PreviewPolicy.defaultExcludedApps {
+                        Button("Restore default list (password managers)") { settings.previewExcludedApps = PreviewPolicy.defaultExcludedApps }
+                            .buttonStyle(.link).font(.caption)
+                    }
+                }
             }
             Section("Snap Layouts") {
                 Toggle("Option+Z opens the Snap Layouts picker", isOn: $settings.layoutsEnabled)

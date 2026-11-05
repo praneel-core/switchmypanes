@@ -15,6 +15,11 @@ final class SettingsStore: ObservableObject {
     @Published var includeFullScreen: Bool { didSet { d.set(includeFullScreen, forKey: "includeFullScreen") } }
     /// Option+Tab also lists minimized windows and windows of hidden (Cmd+H) apps.
     @Published var includeMinimized: Bool { didSet { d.set(includeMinimized, forKey: "includeMinimized") } }
+    /// Take a picture of a window when you leave it (and once you settle in one), so previews exist for windows
+    /// on other desktops. Pictures stay in memory only.
+    @Published var keepPreviewsFresh: Bool { didSet { d.set(keepPreviewsFresh, forKey: "keepPreviewsFresh") } }
+    /// Apps that never get previews: bundle IDs, an entry ending in * is a prefix.
+    @Published var previewExcludedApps: [String] { didSet { d.set(previewExcludedApps, forKey: "previewExcludedApps") } }
     /// After snapping to a half, offer the other windows for the empty half.
     @Published var snapAssistEnabled: Bool { didSet { d.set(snapAssistEnabled, forKey: "snapAssistEnabled") } }
     /// Option+Z opens the Snap Layouts picker.
@@ -29,7 +34,7 @@ final class SettingsStore: ObservableObject {
     @Published var paused = false
 
     private init() {
-        d.register(defaults: ["switcherEnabled": true, "snapEnabled": true, "dragSnapEnabled": true, "layoutsEnabled": true, "snapAssistEnabled": true, "includeOtherDesktops": true, "includeFullScreen": true, "includeMinimized": true, "gap": 0.0,
+        d.register(defaults: ["switcherEnabled": true, "snapEnabled": true, "dragSnapEnabled": true, "layoutsEnabled": true, "snapAssistEnabled": true, "includeOtherDesktops": true, "includeFullScreen": true, "includeMinimized": true, "keepPreviewsFresh": true, "previewExcludedApps": PreviewPolicy.defaultExcludedApps, "gap": 0.0,
                               "snapModifiers": ShortcutModifiers([.control, .option]).rawValue])
         switcherEnabled = d.bool(forKey: "switcherEnabled")
         snapEnabled = d.bool(forKey: "snapEnabled")
@@ -39,6 +44,8 @@ final class SettingsStore: ObservableObject {
         includeOtherDesktops = d.bool(forKey: "includeOtherDesktops")
         includeFullScreen = d.bool(forKey: "includeFullScreen")
         includeMinimized = d.bool(forKey: "includeMinimized")
+        keepPreviewsFresh = d.bool(forKey: "keepPreviewsFresh")
+        previewExcludedApps = d.stringArray(forKey: "previewExcludedApps") ?? PreviewPolicy.defaultExcludedApps
         snapModifiers = ShortcutModifiers(rawValue: d.integer(forKey: "snapModifiers"))
         gap = d.double(forKey: "gap")
     }
@@ -54,7 +61,7 @@ final class SettingsStore: ObservableObject {
     }
 
     func resetToDefaults() {
-        switcherEnabled = true; snapEnabled = true; dragSnapEnabled = true; layoutsEnabled = true; snapAssistEnabled = true; includeOtherDesktops = true; includeFullScreen = true; includeMinimized = true; gap = 0
+        switcherEnabled = true; snapEnabled = true; dragSnapEnabled = true; layoutsEnabled = true; snapAssistEnabled = true; includeOtherDesktops = true; includeFullScreen = true; includeMinimized = true; keepPreviewsFresh = true; previewExcludedApps = PreviewPolicy.defaultExcludedApps; gap = 0
         snapModifiers = [.control, .option]
     }
 }
