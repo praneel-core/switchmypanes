@@ -113,6 +113,7 @@ Accessibility API is top-left; all logic uses top-left and converts once, in `Di
 - DONE: close from the overlay (hover ✕, Delete / W): `KeyAction.switcherClose`, `WindowActivator.close` presses the AX close button, `SwitcherController.removeIfGone` re-checks after 0.25 s and 0.7 s so "Save changes?" windows keep their tile.
 - DONE: minimized + hidden windows. macOS reports both as "not drawn, on the current Space" (`hiddenOrMinimized`); `WindowInventory` confirms through Accessibility in the BACKGROUND (never on the key-press path) and caches the label. Windows on other desktops that are not "ordered in" (`orderedOutElsewhere`, via private `CGSWindowIsOrderedIn`) are closed-to-background ghosts and are only listed if they were verified minimized earlier.
 - DONE: closing a window on another desktop = switch there (`WindowActivator.onOtherSpace`), then press its close button once Accessibility can see it.
+- DONE: background thumbnail cache. `ThumbnailService.captureInBackground` (every ~5 s, per-window minimum 15 s, in-memory only, capped at 60) so windows on other desktops have a last-seen picture.
 - Switcher still to do: all-screens / current-screen option, live thumbnails.
 - Preferences: shortcut recorder, launch at login (`SMAppService.mainApp`).
 

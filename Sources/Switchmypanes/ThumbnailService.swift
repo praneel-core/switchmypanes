@@ -6,7 +6,10 @@ import ScreenCaptureKit
 @MainActor
 final class ThumbnailService {
     private var cache: [CGWindowID: NSImage] = [:]
+    private var cachedAt: [CGWindowID: Date] = [:]
     private var currentTask: Task<Void, Never>?
+    private var backgroundTask: Task<Void, Never>?
+    private let maxCached = 60
 
     var hasPermission: Bool { CGPreflightScreenCaptureAccess() }
 
@@ -29,7 +32,7 @@ final class ThumbnailService {
                 for await (id, cg) in group {
                     guard !Task.isCancelled, let cg, let self else { continue }
                     let img = NSImage(cgImage: cg, size: NSSize(width: cg.width, height: cg.height))
-                    self.cache[id] = img
+                    self.store(img, for: id)
                     update(id, img)
                 }
             }
@@ -37,6 +40,38 @@ final class ThumbnailService {
     }
 
     func cancel() { currentTask?.cancel() }
+
+    /// macOS cannot capture a window that is not showing (another desktop, a full-screen app you left), so
+    /// the overlay can only show the LAST picture we took while it was visible. To always have one, this takes
+    /// pictures of the windows that are visible right now, quietly, at most once per `minInterval` per window.
+    /// Pictures live in memory only: nothing is written to disk or sent anywhere.
+    func captureInBackground(windowIDs: [CGWindowID], minInterval: TimeInterval = 15) {
+        guard hasPermission, backgroundTask == nil else { return }
+        let now = Date()
+        let due = windowIDs.filter { now.timeIntervalSince(cachedAt[$0] ?? .distantPast) >= minInterval }
+        guard !due.isEmpty else { return }
+        backgroundTask = Task { [weak self] in
+            defer { self?.backgroundTask = nil }
+            guard let content = try? await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true) else { return }
+            let byID = Dictionary(content.windows.map { ($0.windowID, $0) }, uniquingKeysWith: { a, _ in a })
+            for id in due {
+                guard !Task.isCancelled, let scWindow = byID[id] else { continue }
+                guard let cg = await Self.capture(scWindow, maxPixelWidth: 480), let self else { continue }
+                self.store(NSImage(cgImage: cg, size: NSSize(width: cg.width, height: cg.height)), for: id)
+            }
+        }
+    }
+
+    private func store(_ image: NSImage, for id: CGWindowID) {
+        cache[id] = image
+        cachedAt[id] = Date()
+        // Keep memory bounded: drop the oldest pictures beyond `maxCached` (usually those of closed windows).
+        if cache.count > maxCached {
+            for (old, _) in cachedAt.sorted(by: { $0.value < $1.value }).prefix(cache.count - maxCached) {
+                cache.removeValue(forKey: old); cachedAt.removeValue(forKey: old)
+            }
+        }
+    }
 
     private nonisolated static func capture(_ window: SCWindow, maxPixelWidth: Int) async -> CGImage? {
         let filter = SCContentFilter(desktopIndependentWindow: window)

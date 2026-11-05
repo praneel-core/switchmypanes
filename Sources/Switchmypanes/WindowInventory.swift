@@ -35,6 +35,8 @@ final class WindowInventory {
     private var titleRefreshInFlight = false
     private var timer: Timer?
     private var tick = 0
+    /// Called every few seconds with the windows that are visible right now (used to keep thumbnails fresh).
+    var onVisibleWindows: (([CGWindowID]) -> Void)?
 
     // Minimized / hidden windows look identical to macOS's window list, so Accessibility tells them apart.
     // That can be slow for a sluggish app, so it runs in the background and the result is cached here.
@@ -61,6 +63,7 @@ final class WindowInventory {
                 self.noteFrontmost()
                 self.tick += 1
                 if self.tick % 2 == 0 { self.refreshHiddenLabelsInBackground() }   // about once a second
+                if self.tick % 10 == 5 { self.onVisibleWindows?(self.rawWindows().map(\.id)) }  // about every 5 seconds
             }
         }
         noteFrontmost()

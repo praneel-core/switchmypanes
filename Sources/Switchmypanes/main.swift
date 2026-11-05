@@ -8,8 +8,13 @@ if CommandLine.arguments.contains("--list-windows") {
         let inventory = WindowInventory(ids: PrivateAXWindowIDProvider(), spaces: makeSpaceProvider(), options: { SpaceFilterOptions() })
         inventory.startTracking()
         RunLoop.current.run(until: Date().addingTimeInterval(3.5))   // lets the background minimized / hidden check finish
-        for w in inventory.snapshot(includeOtherSpaces: true) {
-            print("\(w.id)\t\(w.appName)\t\(w.title)\t\(w.spaceLabel ?? "this desktop")")
+        let windows = inventory.snapshot(includeOtherSpaces: true)
+        let thumbnails = ThumbnailService()
+        thumbnails.captureInBackground(windowIDs: windows.filter(\.isOnCurrentSpace).map(\.id), minInterval: 0)
+        RunLoop.current.run(until: Date().addingTimeInterval(3))     // let the captures finish
+        for w in windows {
+            let t = thumbnails.cached(w.id).map { "thumbnail \(Int($0.size.width))x\(Int($0.size.height))" } ?? "no thumbnail"
+            print("\(w.id)\t\(w.appName)\t\(w.title)\t\(w.spaceLabel ?? "this desktop")\t\(t)")
         }
     }
     exit(0)

@@ -36,6 +36,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, KeyboardMonitorDelegat
 
         monitor.delegate = self
         monitor.configProvider = { [settings] in settings.config }
+        inventory.onVisibleWindows = { [weak self] ids in
+            guard let self, !self.settings.paused, self.settings.switcherEnabled,
+                  !self.switcher.isActive, !self.picker.isActive else { return }
+            self.thumbnails.captureInBackground(windowIDs: ids)
+        }
         inventory.startTracking()
         dragSnapper.start()
         snapper.onBeforeSnap = { [weak self] in self?.assist.cancel() }

@@ -20,8 +20,10 @@ Free, local only: no accounts, no network calls, no analytics. Phase 1 of 3: see
   background without destroying it are NOT listed (they are not really showing anywhere). Toggle in Preferences.
 - **Other desktops and full-screen apps**: the overlay also lists windows on other desktops (Spaces) and full-screen
   apps, each with a small "Desktop 2" / "Full screen" tag. Choosing one makes macOS switch to that desktop.
-  Both can be turned off in Preferences. Thumbnails for these show the last picture taken while the window was
-  visible, otherwise the app icon (macOS cannot capture windows that are not showing).
+  Both can be turned off in Preferences. macOS cannot capture a window that is not showing, so these tiles show the last picture
+  taken while the window was visible. To have one ready, Switchmypanes quietly takes a picture of each visible
+  window every 15 seconds or so (kept in memory only, never saved or sent). A window that has not been visible since
+  Switchmypanes started shows its app icon until you visit it.
 - **Snap Layouts** (**Option+Z**): pick one of nine layouts (halves, thirds, three columns, 2×2 grid, ...) with the
   arrow keys + Return, the digits 1–9, or the mouse. Then, for each area in turn (outlined on screen), pick a window;
   it moves there immediately. Space skips an area, Esc stops (windows already placed stay). Note that Option+Z
@@ -68,7 +70,7 @@ snap shortcuts, and, while the overlay is open, Tab / arrows / Esc.
 ## Diagnostics
 
 `build/Switchmypanes.app/Contents/MacOS/Switchmypanes --list-windows` prints, in the terminal, the windows the
-switcher would show (app, title, desktop / minimized status), then exits. Useful for "why is this window (not) listed".
+switcher would show (app, title, desktop / minimized status, and whether a thumbnail could be captured), then exits. Useful for "why is this window (not) listed".
 
 ## Menu bar and URL scheme
 
