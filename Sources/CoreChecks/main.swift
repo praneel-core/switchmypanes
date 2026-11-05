@@ -249,7 +249,7 @@ do {
     eq(kd(48, .option, active: true), .switcherNext, "Tab while open")
     eq(kd(48, [.option, .shift], active: true), .switcherPrevious, "Shift+Tab while open")
     eq(kd(48, .option, rep: true, active: true), .switcherNext, "holding Tab keeps cycling")
-    eq(kd(53, .option, active: true), .switcherCancel, "Esc cancels")
+    eq(kd(53, .option, active: true), .switcherEscape, "Esc (clears the search first, then cancels)")
     eq(kd(124, .option, active: true), .switcherMove(.right), "arrow moves selection")
     eq(kd(12, .option, active: true), .passThrough, "Option+Q while open is not ours")
     eq(kd(48, [], active: true), .switcherCommit, "missed release is caught")
@@ -387,7 +387,8 @@ do {
     func kd(_ code: Int64, _ f: ShortcutModifiers = .option, active: Bool = true) -> KeyAction {
         KeyClassifier.classifyKeyDown(keyCode: code, flags: f, isRepeat: false, switcherActive: active, config: cfg)
     }
-    eq(kd(51), .switcherClose, "Delete closes"); eq(kd(13), .switcherClose, "W closes"); eq(kd(117), .switcherClose, "forward Delete closes")
+    eq(kd(13, [.option, .command]), .switcherClose, "Command+W closes the highlighted window")
+    eq(kd(51), .switcherBackspace, "Delete is now a typing key (edits the search), not close"); eq(kd(13), .passThrough, "a bare W with no text is not close any more")
     eq(kd(13, [], active: false), .passThrough, "W outside the switcher is untouched")
     eq(kd(13, .option, active: false), .passThrough, "Option+W outside the switcher is untouched")
 }
@@ -733,6 +734,35 @@ do {
     eq(r("dark", 0.65, false).style, "dark", "Dark chosen normally stays Dark")
     eq(r("mystery", 0.65, false).style, "glass", "an unknown look falls back to glass")
     eq(r("glass", 0.05, false).opacity, 0.3, "never so transparent that it is unreadable"); eq(r("glass", 4, false).opacity, 1.0, "or above full")
+}
+
+section("Type to search")
+do {
+    func m(_ q: String, _ texts: String...) -> Bool { WindowSearch.matches(query: q, in: texts) }
+    check(m("", "Chrome", "GitHub"), "empty query matches everything")
+    check(m("chr", "Google Chrome", "GitHub"), "part of the app name"); check(m("CHROME", "Google Chrome"), "case-insensitive")
+    check(m("hub", "Google Chrome", "praneel-core/switchmypanes: GitHub"), "part of the title")
+    check(m("chrome github", "Google Chrome", "GitHub"), "several words must ALL match (in app or title)")
+    check(!m("chrome youtube", "Google Chrome", "GitHub"), "...and one missing word fails")
+    check(m("cafe", "Café Notes"), "accent-insensitive"); check(m("full screen", "Code", "Snapncrop", "Full screen"), "the tag counts too")
+    check(m("  chrome  ", "Google Chrome"), "extra spaces are ignored"); check(!m("zzz", "Google Chrome", "GitHub"), "no match")
+    let names = ["Code", "Google Chrome", "Chrome Canary", "Notes"]
+    eq(WindowSearch.filter(names, query: "chrome", texts: { [$0] }), ["Google Chrome", "Chrome Canary"], "filter keeps the most-recently-used order")
+    let cfg = ShortcutConfig()
+    func kd(_ code: Int64, _ f: ShortcutModifiers, typed: String?, active: Bool = true) -> KeyAction {
+        KeyClassifier.classifyKeyDown(keyCode: code, flags: f, isRepeat: false, switcherActive: active, typed: typed, config: cfg)
+    }
+    eq(kd(8, .option, typed: "c"), .switcherType("c"), "a letter while the switcher is open types"); eq(kd(8, [.option, .shift], typed: "C"), .switcherType("C"), "Shift is fine")
+    eq(kd(13, .option, typed: "w"), .switcherType("w"), "W is just a letter now"); eq(kd(49, .option, typed: " "), .switcherType(" "), "space types (for multi-word searches)")
+    eq(kd(18, .option, typed: "1"), .switcherType("1"), "digits type")
+    eq(kd(8, [.option, .command], typed: "c"), .passThrough, "Command shortcuts are not typing"); eq(kd(8, [.option, .control], typed: "c"), .passThrough, "nor are Control shortcuts")
+    eq(kd(8, .option, typed: nil), .passThrough, "no character known: nothing to type")
+    eq(kd(126, .option, typed: "\u{F700}"), .switcherMove(.up), "an arrow is an arrow, not text")
+    eq(kd(122, .option, typed: "\u{F704}"), .passThrough, "function keys are not text")
+    eq(kd(8, .option, typed: "c", active: false), .passThrough, "nothing is read or typed while the switcher is closed")
+    eq(kd(48, .option, typed: "\t"), .switcherNext, "Tab still moves")
+    check(KeyClassifier.isTypable("a") && KeyClassifier.isTypable("é") && KeyClassifier.isTypable("7") && KeyClassifier.isTypable(" ") && KeyClassifier.isTypable("-"), "letters, accents, digits, space, punctuation are typable")
+    check(!KeyClassifier.isTypable("\u{F700}") && !KeyClassifier.isTypable("\r") && !KeyClassifier.isTypable("") && !KeyClassifier.isTypable("ab") && !KeyClassifier.isTypable("\u{7F}"), "arrow keys, control characters, empty and multi-character strings are not")
 }
 
 print("\n\(total - failures)/\(total) checks passed")

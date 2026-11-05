@@ -147,6 +147,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, KeyboardMonitorDelegat
         case .switcherPrevious: switcher.previous()
         case .switcherMove(let key): switcher.move(key)
         case .switcherCancel: switcher.cancel()
+        case .switcherEscape: switcher.escape()
+        case .switcherType(let text): switcher.type(text)
+        case .switcherBackspace: switcher.backspace()
         case .switcherClose: switcher.closeSelected()
         case .switcherCommit: switcher.commit()
         case .snap(let key, let moveToDisplay):

@@ -184,6 +184,8 @@ final class SwitcherPanel: NSPanel {
     private let ring = NSView()                          // the highlight that slides to the selected tile
     private var tiles: [WindowTileView] = []
     private var captionLabel: NSTextField?
+    private var searchPill: SearchPillView?
+    private var messageLabel: NSTextField?
     private var initialMouse = NSPoint.zero
     private var ringPlaced = false
     var onClick: ((Int) -> Void)?
@@ -207,7 +209,7 @@ final class SwitcherPanel: NSPanel {
     /// - Parameters:
     ///   - show: false = lay everything out but do not put the panel on screen (used to render pictures of it)
     func present(windows: [WindowInfo], layout: SwitcherLayout, selected: Int, on screen: NSScreen,
-                 caption: String? = nil, center: NSPoint? = nil, show: Bool = true,
+                 caption: String? = nil, query: String? = nil, center: NSPoint? = nil, show: Bool = true,
                  thumbnail: (CGWindowID) -> NSImage?) {
         let wasVisible = isVisible
         // (the look and transparency are re-read each time: Preferences, or macOS's "Reduce transparency", may have changed)
@@ -217,14 +219,17 @@ final class SwitcherPanel: NSPanel {
         tiles.forEach { $0.removeFromSuperview() }
         tiles.removeAll()
         captionLabel?.removeFromSuperview(); captionLabel = nil
+        searchPill?.removeFromSuperview(); searchPill = nil
+        messageLabel?.removeFromSuperview(); messageLabel = nil
         ring.removeFromSuperview()
         initialMouse = NSEvent.mouseLocation
         ringPlaced = false
 
         let tile = layout.tile, sp = SwitcherLayout.spacing, pad = SwitcherLayout.padding
-        let header: CGFloat = caption == nil ? 0 : OverlayTheme.captionHeight
+        let hasQuery = !(query ?? "").isEmpty
+        let header: CGFloat = (caption == nil && !hasQuery) ? 0 : OverlayTheme.captionHeight
         let gridWidth = CGFloat(layout.columns) * tile.width + CGFloat(layout.columns - 1) * sp
-        let width = max(gridWidth + 2 * pad, caption == nil ? 0 : 520)
+        let width = max(gridWidth + 2 * pad, caption == nil ? 0 : 520, hasQuery ? 300 : 0)
         let height = CGFloat(layout.rows) * tile.height + CGFloat(layout.rows - 1) * sp + 2 * pad + header
         let leftInset = (width - gridWidth) / 2
         glass.root.setFrameSize(NSSize(width: width, height: height))
@@ -257,11 +262,53 @@ final class SwitcherPanel: NSPanel {
             glass.content.addSubview(l)
             captionLabel = l
         }
+        if hasQuery, let q = query {
+            let pill = SearchPillView(query: q)
+            pill.frame.origin = NSPoint(x: (width - pill.frame.width) / 2, y: height - pad - pill.frame.height + 2)
+            glass.content.addSubview(pill)
+            searchPill = pill
+        }
         setSelected(selected, animated: false)
 
         let vf = screen.visibleFrame
         let c = center ?? NSPoint(x: vf.midX, y: vf.midY)
         setFrame(NSRect(x: c.x - width / 2, y: c.y - height / 2, width: width, height: height), display: true)
+        guard show else { return }
+        if wasVisible { orderFrontRegardless() } else { OverlayTheme.fadeIn(self) }
+    }
+
+    /// The overlay with no tiles: a search that matches nothing.
+    func presentMessage(_ text: String, query: String, on screen: NSScreen, show: Bool = true) {
+        let wasVisible = isVisible
+        let appearance = OverlayTheme.effective
+        if glass.style != appearance.style { glass = OverlayTheme.makeGlass(); contentView = glass.root }
+        glass.applyOpacity(appearance.opacity)
+        tiles.forEach { $0.removeFromSuperview() }; tiles.removeAll()
+        captionLabel?.removeFromSuperview(); captionLabel = nil
+        searchPill?.removeFromSuperview(); searchPill = nil
+        messageLabel?.removeFromSuperview(); messageLabel = nil
+        ring.removeFromSuperview(); ringPlaced = false
+
+        let pad = SwitcherLayout.padding
+        let pill = SearchPillView(query: query)
+        let label = NSTextField(labelWithString: text)
+        label.font = .systemFont(ofSize: 14, weight: .medium)
+        label.textColor = NSColor.white.withAlphaComponent(0.7)
+        label.alignment = .center
+        label.wantsLayer = true; label.shadow = OverlayTheme.softTextShadow()
+        label.sizeToFit()
+        let width = max(420, label.frame.width + 2 * pad, pill.frame.width + 2 * pad)
+        let height = 2 * pad + OverlayTheme.captionHeight + 64
+        glass.root.setFrameSize(NSSize(width: width, height: height))
+        glass.backdrop.frame = glass.root.bounds
+        glass.content.frame = glass.root.bounds
+        pill.frame.origin = NSPoint(x: (width - pill.frame.width) / 2, y: height - pad - pill.frame.height + 2)
+        label.frame = NSRect(x: pad, y: pad + 14, width: width - 2 * pad, height: 20)
+        glass.content.addSubview(pill); glass.content.addSubview(label)
+        searchPill = pill; messageLabel = label
+
+        let vf = screen.visibleFrame
+        setFrame(NSRect(x: vf.midX - width / 2, y: vf.midY - height / 2, width: width, height: height), display: true)
         guard show else { return }
         if wasVisible { orderFrontRegardless() } else { OverlayTheme.fadeIn(self) }
     }

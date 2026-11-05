@@ -35,8 +35,11 @@ public enum KeyAction: Equatable {
     case switcherOpen(reverse: Bool)
     case switcherNext, switcherPrevious
     case switcherMove(ArrowKey)
-    case switcherCancel
-    case switcherClose                     // close the highlighted window (Delete or W)
+    case switcherCancel                    // cancel at once (also used when macOS disables the tap)
+    case switcherEscape                    // the Esc key: clears the search first, then cancels
+    case switcherType(String)              // a character typed to search the windows
+    case switcherBackspace                 // delete the last typed character
+    case switcherClose                     // close the highlighted window (Command+W)
     case switcherCommit                    // modifier released
     case snap(ArrowKey, moveToDisplay: Bool)
     // Snap Layouts picker
@@ -50,7 +53,7 @@ public enum KeyAction: Equatable {
 /// Decides what a key press means. The event tap only ever acts on what this returns,
 /// so "which keys do we swallow" is defined in exactly one, testable, place.
 public enum KeyClassifier {
-    public static let w: Int64 = 13, delete: Int64 = 51, forwardDelete: Int64 = 117, tab: Int64 = 48, escape: Int64 = 53, z: Int64 = 6, space: Int64 = 49, returnKey: Int64 = 36, enter: Int64 = 76
+    public static let w: Int64 = 13, delete: Int64 = 51, tab: Int64 = 48, escape: Int64 = 53, z: Int64 = 6, space: Int64 = 49, returnKey: Int64 = 36, enter: Int64 = 76
     public static let left: Int64 = 123, right: Int64 = 124, down: Int64 = 125, up: Int64 = 126
 
     public static func arrow(for keyCode: Int64) -> ArrowKey? {
@@ -63,6 +66,16 @@ public enum KeyClassifier {
         }
     }
 
+    /// Is this a character you can search with (a letter, digit, punctuation or space), as opposed to an arrow / function
+    /// key, which macOS reports as a private-use or control character?
+    public static func isTypable(_ s: String) -> Bool {
+        guard s.unicodeScalars.count == 1, let u = s.unicodeScalars.first else { return false }
+        let v = u.value
+        if v < 0x20 || v == 0x7F { return false }                  // control characters
+        if v >= 0xE000 && v <= 0xF8FF { return false }             // private use: arrows, F-keys...
+        return true
+    }
+
     /// Digit row keys 1...9 (key codes are not in order on a Mac keyboard).
     public static func digit(for keyCode: Int64) -> Int? {
         [18: 1, 19: 2, 20: 3, 21: 4, 23: 5, 22: 6, 26: 7, 28: 8, 25: 9][keyCode]
@@ -70,7 +83,7 @@ public enum KeyClassifier {
 
     public static func classifyKeyDown(keyCode: Int64, flags: ShortcutModifiers, isRepeat: Bool,
                                        switcherActive: Bool, pickerActive: Bool = false,
-                                       assistMode: Bool = false, config: ShortcutConfig) -> KeyAction {
+                                       assistMode: Bool = false, typed: String? = nil, config: ShortcutConfig) -> KeyAction {
         if pickerActive && assistMode {
             // Snap Assist is a light overlay: its own few keys work, ANY other key closes it and then does
             // its normal job (so Control+Option+Up right after a snap still snaps; typing still types).
@@ -105,10 +118,14 @@ public enum KeyClassifier {
             guard flags.contains(config.switcherModifier) else { return .switcherCommit }
             switch keyCode {
             case tab: return flags.contains(.shift) ? .switcherPrevious : .switcherNext
-            case escape: return .switcherCancel
-            case delete, forwardDelete, w: return .switcherClose
+            case escape: return .switcherEscape
+            case delete: return .switcherBackspace
             default:
                 if let a = arrow(for: keyCode) { return .switcherMove(a) }
+                // Command+W closes the highlighted window (Delete and W are typing keys now)
+                if keyCode == w && flags.contains(.command) { return .switcherClose }
+                // anything else you TYPE searches the windows (but not Command / Control shortcuts)
+                if !flags.contains(.command), !flags.contains(.control), let t = typed, isTypable(t) { return .switcherType(t) }
                 return .passThrough
             }
         }

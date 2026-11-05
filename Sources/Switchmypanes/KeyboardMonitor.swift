@@ -85,10 +85,13 @@ final class KeyboardMonitor {
             if isPaused || isSuspended() { return pass }
             let code = event.getIntegerValueField(.keyboardEventKeycode)
             let isRepeat = event.getIntegerValueField(.keyboardEventAutorepeat) != 0
+            // The character is read ONLY while the window switcher is open (it is used to search the windows, kept in
+            // memory until the overlay closes, never stored or logged). At any other time it is never looked at.
+            let typedCharacter: String? = delegate.switcherActive ? NSEvent(cgEvent: event)?.charactersIgnoringModifiers : nil
             func classify() -> KeyAction {
                 KeyClassifier.classifyKeyDown(keyCode: code, flags: Self.modifiers(event.flags), isRepeat: isRepeat,
                                               switcherActive: delegate.switcherActive, pickerActive: delegate.pickerActive,
-                                              assistMode: delegate.pickerAssistMode, config: configProvider())
+                                              assistMode: delegate.pickerAssistMode, typed: typedCharacter, config: configProvider())
             }
             var action = classify()
             if action == .pickerDismiss {            // Snap Assist: close it, then handle the key as if it had never been open

@@ -101,6 +101,65 @@ enum OverlayPreview {
         return bad == 0
     }
 
+    /// `--selftest-search`: drives the real controller through a search session (no drawing) and checks every step.
+    @MainActor static func verifySearchFlow() -> Bool {
+        let apps = ["Code", "Google Chrome", "Terminal", "Chrome Canary", "Notes"]
+        let list = apps.enumerated().map { i, name in
+            WindowInfo(id: UInt32(500 + i), pid: 1, appName: name, title: name == "Notes" ? "Shopping list" : "\(name) window", frame: .zero,
+                       icon: nil, placement: .currentSpace, spaceLabel: nil, bundleID: nil)
+        }
+        let controller = SwitcherController(inventory: WindowInventory(ids: PrivateAXWindowIDProvider(), spaces: CurrentSpaceOnlyProvider(), options: { SpaceFilterOptions() }),
+                                            thumbnails: ThumbnailService(), activator: WindowActivator(ids: PrivateAXWindowIDProvider()))
+        controller.debugSuppressPanel = true
+        var ok = true
+        func check(_ cond: Bool, _ what: String) { print(cond ? "PASS: \(what)" : "FAIL: \(what)"); ok = ok && cond }
+
+        controller.debugBegin(with: list)
+        check(controller.debugState.shown == apps, "starts with every window")
+        controller.type("c")
+        check(controller.debugState.shown == ["Code", "Google Chrome", "Chrome Canary"], "typing 'c' keeps only windows containing a c (Terminal and Notes drop out)")
+        controller.type("h"); controller.type("r")
+        check(controller.debugState.query == "chr" && controller.debugState.shown == ["Google Chrome", "Chrome Canary"], "typing 'chr' leaves the two Chrome windows, most recent first")
+        check(controller.debugState.selected == 0, "the best match is highlighted")
+        controller.type("o")
+        check(controller.debugState.shown == ["Google Chrome", "Chrome Canary"], "'chro' still matches both")
+        controller.type("m"); controller.type("e"); controller.type(" "); controller.type("c")
+        check(controller.debugState.shown == ["Chrome Canary"] || controller.debugState.shown == ["Google Chrome", "Chrome Canary"], "multi-word search works (got \(controller.debugState.shown))")
+        controller.backspace(); controller.backspace()
+        check(controller.debugState.query == "chrome", "two backspaces turn \"chrome c\" into \"chrome\" (query \"\(controller.debugState.query)\")")
+        controller.escape()
+        check(controller.debugState.query == "" && controller.debugState.shown == apps && controller.debugState.active, "Esc clears the search and keeps the overlay open")
+        controller.backspace()
+        check(controller.debugState.active && controller.debugState.shown == apps, "backspace with nothing typed does nothing (and closes nothing)")
+        controller.type("z"); controller.type("z"); controller.type("z")
+        check(controller.debugState.shown.isEmpty && controller.debugState.active, "no match: an empty result, overlay still open")
+        controller.move(.down); controller.next(); controller.previous()
+        check(controller.debugState.active, "moving with no results is safe")
+        controller.backspace(); controller.backspace(); controller.backspace()
+        check(controller.debugState.shown == apps, "deleting the text brings every window back")
+        controller.type("n"); controller.type("o")
+        check(controller.debugState.shown == ["Notes"] || controller.debugState.shown.contains("Notes"), "searching the TITLE works too ('no' finds Notes / Shopping list)")
+        controller.escape(); controller.escape()
+        check(!controller.debugState.active, "a second Esc closes the overlay")
+        controller.type("x"); controller.backspace(); controller.escape()
+        check(!controller.debugState.active && controller.debugState.query == "", "typing after it closed does nothing, and the text is forgotten")
+        // The real key-to-character path (events built in memory, never posted): Option must NOT change the letter
+        func character(_ keyCode: CGKeyCode, _ flags: CGEventFlags) -> String? {
+            guard let e = CGEvent(keyboardEventSource: nil, virtualKey: keyCode, keyDown: true) else { return nil }
+            e.flags = flags
+            return NSEvent(cgEvent: e)?.charactersIgnoringModifiers
+        }
+        check(character(8, .maskAlternate) == "c", "Option+C is read as plain \"c\" (not \"ç\"): got \(character(8, .maskAlternate) ?? "nil")")
+        check(character(13, .maskAlternate) == "w", "Option+W is read as \"w\" (not \"∑\"): got \(character(13, .maskAlternate) ?? "nil")")
+        check(character(8, [.maskAlternate, .maskShift]) == "C", "with Shift: \"C\" (the search ignores case)")
+        check(character(49, .maskAlternate) == " ", "Option+Space is a space")
+        check(KeyClassifier.isTypable(character(18, .maskAlternate) ?? ""), "Option+1 is a typable digit")
+        check(!(character(126, .maskAlternate).map(KeyClassifier.isTypable) ?? true), "an arrow key is reported as a non-typable character")
+        controller.debugBegin(with: list); controller.type("z"); controller.commit()
+        check(!controller.debugState.active, "releasing the key with no match just closes the overlay")
+        return ok
+    }
+
     /// `--selftest-overlay`: opens the REAL overlay (real glass) once per look and checks it comes up and goes away.
     static func flashEachStyle() -> Bool {
         let screen = NSScreen.main ?? NSScreen.screens[0]
@@ -192,6 +251,15 @@ enum OverlayPreview {
         let solid = make(all, selected: 1, caption: nil)
         png(of: solid.contentSnapshotView, over: true, to: folder.appendingPathComponent("switcher-reduce-transparency.png"))
         OverlayTheme.reduceTransparencyOverride = nil
+        // type to search: filtered results, and a search that matches nothing
+        let hits = all.filter { WindowSearch.matches(query: "code", in: [$0.appName, $0.title, $0.spaceLabel ?? ""]) }
+        let searching = SwitcherPanel()
+        searching.present(windows: hits, layout: SwitcherLayout.plan(count: hits.count, screen: screen), selected: 0, on: screen, query: "code",
+                          show: false, thumbnail: { thumbs[$0] })
+        png(of: searching.contentSnapshotView, over: true, to: folder.appendingPathComponent("switcher-search.png"))
+        let nothing = SwitcherPanel()
+        nothing.presentMessage("No windows match \u{201C}zzz\u{201D}", query: "zzz", on: screen, show: false)
+        png(of: nothing.contentSnapshotView, over: true, to: folder.appendingPathComponent("switcher-search-empty.png"))
         // the close button: shown on the second tile (resting) and the third (pointed at)
         let closeDemo = make(Array(all.prefix(4)), selected: 1, caption: nil)
         closeDemo.debugShowCloseButton(on: 1, pointedAt: false); closeDemo.debugShowCloseButton(on: 2, pointedAt: true)

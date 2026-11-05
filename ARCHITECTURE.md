@@ -27,6 +27,7 @@ Sources/
     LinkedResize.swift            shared-divider resizing, dividers, hover zones, MinSizeLearning
     Switcher.swift                MRUList, SwitcherSelection (the "second window first" rule, spatial arrow keys), OverlayGrid (the grid layout rule shared by drawing and navigation)
     SpaceClassifier.swift         which windows belong in the switcher (current / other desktop / minimized / junk)
+    WindowSearch.swift            type-to-search matching (every word must appear in app name, title or tag; accent/case-insensitive)
     KeyClassifier.swift           what a key press means: the ONLY place that decides which keys we swallow
     ShortcutRules.swift           shortcut display names and ShortcutValidator (which combinations are allowed)
     AppExclusions.swift           per-app exclusion rules (switcher / snapping scopes), bundle-ID matching
@@ -106,6 +107,9 @@ minimized/hidden are confirmed through Accessibility in the BACKGROUND (never on
 another desktop that is not "ordered in" is a closed-to-background ghost (Claude, Slack…) and is dropped unless it was
 verified minimized earlier. Untitled windows that Accessibility does not recognise (Chrome's full-screen toolbar strip)
 are dropped too.
+
+### Type to search
+While the overlay is open the listener reads the typed character (`NSEvent(cgEvent:).charactersIgnoringModifiers`, so Option does not change a letter) and passes it to `KeyClassifier` (`typed:`), which returns `switcherType` / `switcherBackspace` / `switcherEscape`; Command or Control shortcuts are never typing, and ⌘W closes the highlighted window. `SwitcherController` keeps the full window list and the query separately and re-filters with `WindowSearch`; the query lives only in memory and is cleared when the overlay closes. The characters are read ONLY while the switcher is open (`delegate.switcherActive`). `--selftest-search` drives the whole flow, including the real key-to-character conversion.
 
 ### Going to a window on another desktop
 `WindowActivator`: (1) `SpaceProvider.switchToSpace` presses the user's "Move left/right a space" shortcut once per

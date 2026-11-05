@@ -209,3 +209,32 @@ final class CloseButton: NSButton {
         cross.stroke()
     }
 }
+
+/// The search field shown at the top of the overlay while you type: a magnifier and what you have typed so far.
+final class SearchPillView: NSView {
+    private let text: String
+    private static let font = NSFont.systemFont(ofSize: 14, weight: .medium)
+
+    init(query: String) {
+        text = query
+        let w = (query as NSString).size(withAttributes: [.font: Self.font]).width
+        super.init(frame: NSRect(x: 0, y: 0, width: max(200, (w + 64).rounded(.up)), height: 28))
+    }
+    required init?(coder: NSCoder) { fatalError() }
+
+    override func draw(_ dirtyRect: NSRect) {
+        let pill = NSBezierPath(roundedRect: bounds, xRadius: 14, yRadius: 14)
+        NSColor.white.withAlphaComponent(0.14).setFill(); pill.fill()
+        NSColor.white.withAlphaComponent(0.26).setStroke(); pill.lineWidth = 1; pill.stroke()
+        if let icon = NSImage(systemSymbolName: "magnifyingglass", accessibilityDescription: nil)?
+            .withSymbolConfiguration(.init(pointSize: 12, weight: .semibold)) {
+            let tinted = icon.copy() as! NSImage
+            tinted.lockFocus(); NSColor.white.withAlphaComponent(0.75).set()
+            NSRect(origin: .zero, size: tinted.size).fill(using: .sourceAtop); tinted.unlockFocus()
+            tinted.draw(at: NSPoint(x: 12, y: bounds.midY - tinted.size.height / 2), from: .zero, operation: .sourceOver, fraction: 1)
+        }
+        let attrs: [NSAttributedString.Key: Any] = [.font: Self.font, .foregroundColor: NSColor.white]
+        let size = (text as NSString).size(withAttributes: attrs)
+        (text as NSString).draw(at: NSPoint(x: 34, y: bounds.midY - size.height / 2), withAttributes: attrs)
+    }
+}

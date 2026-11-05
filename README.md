@@ -42,8 +42,10 @@ All of these can be changed in Preferences (menu bar icon → Preferences).
 |---|---|
 | **Option+Tab** (hold Option, tap Tab) | open the window switcher; release Option to switch |
 | Tab / Shift+Tab / arrow keys | move through the windows. ←/→ step through them (and wrap); ↑/↓ go to the tile directly below / above (the nearest one when nothing is exactly there, e.g. at a corner of a short last row; they wrap), and with a single row ↓ = next and ↑ = previous |
-| Esc | cancel |
-| Delete or W | close the highlighted window |
+| type letters or digits | search: only windows whose app name or title contains what you type stay (several words must all match) |
+| ⌫ | delete the last typed character |
+| Esc | clear the search; a second Esc cancels |
+| ⌘W | close the highlighted window |
 | **Control+Option+←/→** | snap to the left / right half |
 | Control+Option+↑ | maximize |
 | Control+Option+↓ | restore the old size (or minimize if the window is not snapped) |
@@ -68,7 +70,7 @@ switches, and the overlay never takes keyboard focus until you commit. It can al
 Apps that "close" a window to the background without destroying it (Claude, Slack, …) and helper windows that are not
 real windows are not listed. Each kind can be switched off in Preferences.
 
-Hover a tile and click the small glass ✕ that fades in (it turns red when you point at it), or press **Delete / W**, to close a window. It closes exactly as if you had clicked
+Hover a tile and click the small glass ✕ that fades in (it turns red when you point at it), or press **⌘W**, to close a window. It closes exactly as if you had clicked
 its close button, so "Save changes?" prompts still appear. For a window on another desktop it switches there first.
 
 ### Snapping
@@ -111,9 +113,13 @@ The menu bar menu has Preferences, Permissions, Pause / Resume and Quit. A `swit
 
 ## Privacy
 Everything stays on your Mac. The keyboard listener (a CGEventTap) looks only at the key code and which modifier keys
-are held, to see whether it is one of its own shortcuts; everything else passes through untouched. It never reads
-characters, stores or logs what you type, and cannot see into password fields (macOS hides those from every app). It
-swallows only Option+Tab, the snap and layout shortcuts, and, while an overlay is open, Tab / arrows / Esc / Return.
+are held, to see whether it is one of its own shortcuts; everything else passes through untouched. It never stores or
+logs what you type and cannot see into password fields (macOS hides those from every app). It swallows only Option+Tab,
+the snap and layout shortcuts, and, while an overlay is open, the keys that operate it.
+
+**The one exception: type to search.** While the Option+Tab overlay is open, the characters you type are read so the list
+can be filtered. They are used only for that, held in memory only until the overlay closes, and are never stored, logged
+or sent. When the overlay is closed, no character is ever looked at.
 
 ## Troubleshooting
 - **Shortcuts do nothing:** open Permissions from the menu bar icon; Accessibility and Input Monitoring must both be on.
@@ -164,18 +170,19 @@ XCTest is not available with only the Command Line Tools, so the logic checks ar
 
 1. **Setup**: `./build.sh install`, grant the permissions; the checklist should say the shortcuts are active.
 2. **Switcher**: with 4+ windows in 2+ apps, hold Option and tap Tab: the second window is preselected; Tab, Shift+Tab and the arrows move; releasing Option switches; Esc cancels; clicking a tile switches. Two quick taps toggle between the last two windows.
-3. **Close**: hover a tile and click ✕, or press Delete / W: the window closes and the overlay re-flows. A TextEdit document with unsaved text keeps its tile (the save sheet appears).
-4. **Minimized / hidden**: minimize a window and hide another app (Cmd+H): both appear tagged; choosing one brings it back.
-5. **Desktops**: put an app full screen and keep another of its windows on your main desktop. From the main desktop open the switcher and pick the full-screen one (and back): the slide animation plays, the right window is in front, and no Mission Control or Dock UI lingers.
-6. **Previews**: work in two windows for a few seconds each, switch desktop, open the switcher: both have pictures. Add an app to "never take previews": its tile shows only the icon.
-7. **Keyboard snapping**: Control+Option+←/→/↑/↓, then Left then Up (and Down) for quarters; Down on a snapped window restores it; Down on an unsnapped window minimizes it. Add Shift with a second display to move the window across.
-8. **Drag to snap**: drag a title bar to each edge and corner; the preview follows; release snaps; dragging across the middle of two displays does not snap.
-9. **Snap Assist**: snap a window Left; other windows appear over the right half; Return fills it; Esc, a click elsewhere, or Control+Option+Up right after the snap closes it.
-10. **Snap Layouts**: Option+Z, press 3 ("Three columns"), place three windows with Return; try Space (skip), Esc, and a click outside. Set a gap in Preferences and repeat: gaps are even.
-11. **Linked resizing**: after "Halves" no line is visible; hover the middle of the seam: it fades in; drag it: both windows resize; move away: it fades out; hovering near the ends of the seam does nothing. Try "Grid 2 × 2", "Three columns", and a Snap Assist pair. Drag toward an app with a large minimum width: the line stops, nothing overlaps, dragging back works. Drag a window away by its title bar: it leaves the group.
-12. **Exclusions**: add Safari with only "Hide from switcher": it disappears from the switcher but still snaps; with only "Never snap": the snap shortcuts, dragging and Assist ignore it.
-13. **Preferences**: record a new Snap Layouts shortcut (⌃⌥B) and check the old one stops working; ⌘Tab and ⌥← are refused; record ⌃⌥Tab for the switcher (releasing either key commits); the reset arrows work; while recording, the current shortcut does not trigger.
-14. **Open at login**: turn it on from the installed copy, approve it in System Settings if asked, log out and in: the menu bar icon returns.
-15. **Look and animation**: open the switcher: a glass panel, tags on other-desktop / minimized tiles, and a highlight ring that slides as you press Tab. Snap a window with Control+Option+Left, drag one to an edge, and fill a layout: a glowing outline travels to where each window lands and fades. Turn Reduce motion on in System Settings → Accessibility → Display: the overlays appear instantly and nothing animates.
-16. **Menu bar**: Pause stops every shortcut; Resume restores them; Quit removes the icon.
+3. **Search**: open the switcher with several windows and just start typing: a search field appears and only matching windows stay (try part of an app name, then part of a title, then two words); ⌫ deletes a letter, Esc clears the search, a second Esc cancels; a search with no match shows "No windows match" and releasing Option just closes it.
+4. **Close**: hover a tile and click ✕, or press ⌘W: the window closes and the overlay re-flows. A TextEdit document with unsaved text keeps its tile (the save sheet appears).
+5. **Minimized / hidden**: minimize a window and hide another app (Cmd+H): both appear tagged; choosing one brings it back.
+6. **Desktops**: put an app full screen and keep another of its windows on your main desktop. From the main desktop open the switcher and pick the full-screen one (and back): the slide animation plays, the right window is in front, and no Mission Control or Dock UI lingers.
+7. **Previews**: work in two windows for a few seconds each, switch desktop, open the switcher: both have pictures. Add an app to "never take previews": its tile shows only the icon.
+8. **Keyboard snapping**: Control+Option+←/→/↑/↓, then Left then Up (and Down) for quarters; Down on a snapped window restores it; Down on an unsnapped window minimizes it. Add Shift with a second display to move the window across.
+9. **Drag to snap**: drag a title bar to each edge and corner; the preview follows; release snaps; dragging across the middle of two displays does not snap.
+10. **Snap Assist**: snap a window Left; other windows appear over the right half; Return fills it; Esc, a click elsewhere, or Control+Option+Up right after the snap closes it.
+11. **Snap Layouts**: Option+Z, press 3 ("Three columns"), place three windows with Return; try Space (skip), Esc, and a click outside. Set a gap in Preferences and repeat: gaps are even.
+12. **Linked resizing**: after "Halves" no line is visible; hover the middle of the seam: it fades in; drag it: both windows resize; move away: it fades out; hovering near the ends of the seam does nothing. Try "Grid 2 × 2", "Three columns", and a Snap Assist pair. Drag toward an app with a large minimum width: the line stops, nothing overlaps, dragging back works. Drag a window away by its title bar: it leaves the group.
+13. **Exclusions**: add Safari with only "Hide from switcher": it disappears from the switcher but still snaps; with only "Never snap": the snap shortcuts, dragging and Assist ignore it.
+14. **Preferences**: record a new Snap Layouts shortcut (⌃⌥B) and check the old one stops working; ⌘Tab and ⌥← are refused; record ⌃⌥Tab for the switcher (releasing either key commits); the reset arrows work; while recording, the current shortcut does not trigger.
+15. **Open at login**: turn it on from the installed copy, approve it in System Settings if asked, log out and in: the menu bar icon returns.
+16. **Look and animation**: open the switcher: a glass panel, tags on other-desktop / minimized tiles, and a highlight ring that slides as you press Tab. Snap a window with Control+Option+Left, drag one to an edge, and fill a layout: a glowing outline travels to where each window lands and fades. Turn Reduce motion on in System Settings → Accessibility → Display: the overlays appear instantly and nothing animates.
+17. **Menu bar**: Pause stops every shortcut; Resume restores them; Quit removes the icon.
 </details>

@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Type to search in the Option+Tab overlay: start typing and only windows whose app name or title contains your words stay (matching is in Core, tested). ⌫ edits the text, Esc clears it (a second Esc cancels). **Closing a window is now ⌘W** (Delete and W are typing keys); the ✕ still works. While the overlay is open the typed characters are read to search, never stored or logged.
 - Respects macOS's *Reduce transparency*: the overlays switch to the solid Dark look automatically (rule in Core, tested).
 - App icon: three glass windows with one lit and a divider grip, in the same glass style as the app (drawn in code by `tools/make-app-icon.swift`).
 - Transparency slider for the overlay glass (default 35%): only the glass fades, the tiles and text stay sharp. The glass is now a separate layer behind the content.

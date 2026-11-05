@@ -11,6 +11,7 @@ if CommandLine.arguments.contains("--help") || CommandLine.arguments.contains("-
                                 whether a preview could be captured), then exit. No side effects.
           --exclude=<bundle id> also apply a "hide from switcher" exclusion (repeatable), to test the rule.
       --render-overlay <folder> draw the overlays offscreen with sample windows into PNG files (no side effects).
+      --selftest-search         drive the type-to-search flow of the real controller step by step (nothing is drawn). Prints PASS / FAIL.
       --selftest-arrows         check that Down / Up pick the tile that is really drawn below / above, for every window count
                                 (offscreen, no side effects). Prints PASS / FAIL.
       --selftest-overlay        open the real overlay once per look (Glass / Frosted / Dark) for about a second each, to check it
@@ -38,6 +39,17 @@ if let i = CommandLine.arguments.firstIndex(of: "--render-overlay") {
     }
     print("rendered to \(folder)")
     exit(0)
+}
+
+// `Switchmypanes --selftest-search`: drives the type-to-search flow of the real controller (nothing is drawn).
+if CommandLine.arguments.contains("--selftest-search") {
+    var ok = false
+    MainActor.assumeIsolated {
+        _ = NSApplication.shared
+        ok = OverlayPreview.verifySearchFlow()
+        print(ok ? "PASS" : "FAIL")
+    }
+    exit(ok ? 0 : 1)
 }
 
 // `Switchmypanes --selftest-arrows`: checks the arrow keys against the real, drawn tile positions (offscreen, no side effects).
