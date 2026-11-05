@@ -60,13 +60,13 @@ enum OverlayTheme {
     }
 
     /// Fades a panel in (a quick, subtle entrance); instant when Reduce motion is on.
-    static func fadeIn(_ panel: NSPanel, duration: TimeInterval = 0.12) {
+    static func fadeIn(_ panel: NSPanel, duration: TimeInterval = 0.14) {
         guard motionEnabled else { panel.alphaValue = 1; panel.orderFrontRegardless(); return }
         panel.alphaValue = 0
         panel.orderFrontRegardless()
         NSAnimationContext.runAnimationGroup { ctx in
             ctx.duration = duration
-            ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            ctx.timingFunction = CAMediaTimingFunction(controlPoints: 0.22, 1.0, 0.36, 1.0)
             panel.animator().alphaValue = 1
         }
     }

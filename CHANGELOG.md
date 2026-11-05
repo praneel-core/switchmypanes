@@ -4,6 +4,8 @@
 
 - New overlay look for the window switcher, Snap Assist and Snap Layouts: glass panels, a highlight that slides between tiles, a keyboard-hint bar, colour-coded tags, a centred last row, and a quick fade-in.
 - Snap animation: a glowing outline travels from where a window was to where it lands (keyboard, drag, Snap Assist, Snap Layouts); switchable in Preferences.
+- The snap animation is a spring-animated outline (smoother, with a trailing echo, glow no longer clipped).
+- Arrow keys in the overlays always do something: in a single row Down = next and Up = previous; in a grid they wrap around.
 - Preferences reorganised into five tabs.
 - Reduce motion is respected everywhere.
 - New diagnostics: `--render-overlay`, `--selftest-motion`.

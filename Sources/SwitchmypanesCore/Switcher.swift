@@ -62,13 +62,31 @@ public struct SwitcherSelection: Equatable {
 
     public mutating func select(_ i: Int) { if i >= 0 && i < count { index = i } }
 
-    /// Arrow keys on a grid with `columns` columns. Left/right wrap like Tab; up/down stay put at the edges.
+    /// Arrow keys on a grid with `columns` columns. Every arrow always does something sensible:
+    /// - Left / Right step through the windows and wrap around, like Tab.
+    /// - With a single row, Down means "next" and Up means "previous" (there is no row to move to).
+    /// - With several rows, Down / Up move one row, staying in the same column; past the last (first) row they wrap to the
+    ///   first (last) row. An incomplete last row is handled: you land on its last window.
     public mutating func move(_ key: ArrowKey, columns: Int) {
+        guard count > 0 else { return }
+        let cols = max(1, columns)
+        let rows = (count + cols - 1) / cols
         switch key {
         case .left: previous()
         case .right: next()
-        case .up:   if index - columns >= 0 { index -= columns }
-        case .down: if index + columns < count { index += columns }
+        case .down:
+            if rows == 1 { next(); return }
+            let row = index / cols
+            if row == rows - 1 { index = index % cols }                    // from the last row: wrap to the top, same column
+            else { index = min(index + cols, count - 1) }                  // otherwise one row down (clamped on a short last row)
+        case .up:
+            if rows == 1 { previous(); return }
+            if index - cols >= 0 { index -= cols }
+            else {                                                         // from the top row: wrap to the bottom, same column
+                var bottom = index + (rows - 1) * cols
+                while bottom >= count { bottom -= cols }
+                index = bottom
+            }
         }
     }
 }

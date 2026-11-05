@@ -46,7 +46,7 @@ Sources/
     WindowActivator.swift         bring a window forward / close it, across desktops
     SnapController.swift, WindowMover.swift            keyboard snapping, applying frames to windows
     DragSnapController.swift, ZonePreviewOverlay.swift drag to an edge, with a preview
-    SnapMotion.swift              the snap animation: a glowing outline from the old frame to the new one (rules: Core `SnapMotionPolicy`)
+    SnapMotion.swift              the snap animation: spring-animated Core Animation layers in one click-through panel (rules: Core `SnapMotionPolicy`)
     OverlayTheme.swift            the shared overlay look: glass, keycap hint bar, tags, fade-in (and Reduce-motion handling)
     OverlayPreview.swift          `--render-overlay`: draws the overlays and Preferences offscreen to PNG for checking the look
     SnapAssistController.swift    the empty half after a half-snap

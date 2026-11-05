@@ -41,7 +41,7 @@ All of these can be changed in Preferences (menu bar icon → Preferences).
 | Do this | To |
 |---|---|
 | **Option+Tab** (hold Option, tap Tab) | open the window switcher; release Option to switch |
-| Tab / Shift+Tab / arrow keys | move through the windows |
+| Tab / Shift+Tab / arrow keys | move through the windows. ←/→ step through them (and wrap); ↑/↓ move between rows, and with a single row ↓ = next and ↑ = previous |
 | Esc | cancel |
 | Delete or W | close the highlighted window |
 | **Control+Option+←/→** | snap to the left / right half |
@@ -73,7 +73,7 @@ its close button, so "Save changes?" prompts still appear. For a window on anoth
 
 ### Snapping
 - **Keyboard**: the shortcuts above follow the Windows Win+Arrow logic. A gap between windows is optional.
-- **Animation**: when a window snaps (by keyboard, dragging, Snap Assist or Snap Layouts) a soft glowing outline travels from where it was to where it lands, then pulses and fades. The window itself still snaps instantly. Switch it off in Preferences → Snapping; it is also skipped when macOS's Reduce motion is on.
+- **Animation**: when a window snaps (by keyboard, dragging, Snap Assist or Snap Layouts) a soft glowing outline glides from where it was to where it lands (a spring: it accelerates, overshoots a touch and settles, with a fainter echo trailing it) and fades. The window itself still snaps instantly. Switch it off in Preferences → Snapping; it is also skipped when macOS's Reduce motion is on.
 - **Drag to an edge**: left / right edge = half, top edge = maximize, corners = quarters. A translucent preview shows
   where the window will land. Edges shared with another display are ignored.
 - **Snap Assist**: after a window is snapped to a half, thumbnails of your other windows appear over the empty half.

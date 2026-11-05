@@ -273,8 +273,8 @@ final class SwitcherPanel: NSPanel {
         let frame = target.frame.insetBy(dx: -3, dy: -3)
         if animated && ringPlaced && OverlayTheme.motionEnabled {
             NSAnimationContext.runAnimationGroup { ctx in
-                ctx.duration = 0.13
-                ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
+                ctx.duration = 0.2
+                ctx.timingFunction = CAMediaTimingFunction(controlPoints: 0.22, 1.0, 0.36, 1.0)     // fast start, long soft landing
                 ring.animator().frame = frame
             }
         } else {
