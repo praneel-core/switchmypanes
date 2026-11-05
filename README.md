@@ -68,7 +68,7 @@ switches, and the overlay never takes keyboard focus until you commit. It can al
 Apps that "close" a window to the background without destroying it (Claude, Slack, …) and helper windows that are not
 real windows are not listed. Each kind can be switched off in Preferences.
 
-Hover a tile and click the red ✕, or press **Delete / W**, to close a window. It closes exactly as if you had clicked
+Hover a tile and click the small glass ✕ that fades in (it turns red when you point at it), or press **Delete / W**, to close a window. It closes exactly as if you had clicked
 its close button, so "Save changes?" prompts still appear. For a window on another desktop it switches there first.
 
 ### Snapping
@@ -102,7 +102,7 @@ the screen is locked, you are idle, or Low Power Mode is on; password managers a
 thing can be switched off, and apps can be added to a never-capture list, in Preferences.
 
 ## Preferences and menu bar
-Preferences has five tabs (General, Shortcuts, Switcher, Snapping, Apps). The overlays share one glass look (three choices in Preferences → Switcher: **Glass**, the clearest and the default, which is real Liquid Glass on macOS 26; **Frosted**; and **Dark**, the heaviest and easiest to read over a busy desktop), a highlight that slides to the selected tile, colour-coded tags, and a quick fade-in (all motion is skipped when macOS's Reduce motion is on). Preferences has click-to-record **shortcuts** (clashes with macOS or with text editing, such as ⌘Tab or ⌥←, are refused
+Preferences has five tabs (General, Shortcuts, Switcher, Snapping, Apps). The overlays share one glass look (a Look choice and a Transparency slider in Preferences → Switcher; the slider fades only the glass, so tiles and text stay sharp. The looks are: **Glass**, the clearest and the default, which is real Liquid Glass on macOS 26; **Frosted**; and **Dark**, the heaviest and easiest to read over a busy desktop), a highlight that slides to the selected tile, colour-coded tags, and a quick fade-in (all motion is skipped when macOS's Reduce motion is on). Preferences has click-to-record **shortcuts** (clashes with macOS or with text editing, such as ⌘Tab or ⌥←, are refused
 with a reason), toggles for every feature, the gap between snapped windows, the never-capture and excluded-app lists, and
 **Open at login** (via macOS's own login items; install with `./build.sh install` first so it points at `~/Applications`).
 

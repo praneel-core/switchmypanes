@@ -89,6 +89,7 @@ final class LayoutChoicePanel: NSPanel {
     func present(layouts: [SnapLayout], selected: Int, on screen: NSScreen, show: Bool = true) {
         let wasVisible = isVisible
         if glass.style != OverlayTheme.style { glass = OverlayTheme.makeGlass(); contentView = glass.root }   // the look was changed in Preferences
+        glass.applyOpacity(OverlayTheme.opacity)                                                                  // ...or its transparency
         cells.forEach { $0.removeFromSuperview() }; cells.removeAll()
         glass.content.subviews.forEach { $0.removeFromSuperview() }
         initialMouse = NSEvent.mouseLocation
@@ -99,6 +100,7 @@ final class LayoutChoicePanel: NSPanel {
         let width = gridW + 2 * pad
         let height = CGFloat(rows) * cell.height + CGFloat(rows - 1) * sp + 2 * pad + header
         glass.root.setFrameSize(NSSize(width: width, height: height))
+        glass.backdrop.frame = glass.root.bounds
         glass.content.frame = glass.root.bounds
 
         let title = NSTextField(labelWithString: "Snap Layouts")

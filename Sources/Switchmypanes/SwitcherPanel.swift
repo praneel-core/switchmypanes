@@ -51,7 +51,7 @@ final class WindowTileView: NSView {
     private let badge = NSImageView()
     private let titleLabel: NSTextField
     private let appLabel: NSTextField
-    private let closeButton = FirstClickButton()
+    private let closeButton = CloseButton()
     private let tagView: TagView?
     private let icon: NSImage?
     private let hasDistinctTitle: Bool
@@ -100,15 +100,10 @@ final class WindowTileView: NSView {
         if let tagView { addSubview(tagView) }
 
         // Close button: appears while the mouse is over the tile (for a window on another desktop it first switches there).
-        closeButton.isBordered = false
-        closeButton.imagePosition = .imageOnly
-        closeButton.image = NSImage(systemSymbolName: "xmark.circle.fill", accessibilityDescription: "Close window")?
-            .withSymbolConfiguration(.init(paletteColors: [.white, .systemRed]))
-        closeButton.imageScaling = .scaleProportionallyUpOrDown
         closeButton.toolTip = info.isOnAnotherSpace ? "Close this window (switches to its desktop first)" : "Close this window"
         closeButton.target = self
         closeButton.action = #selector(closeTapped)
-        closeButton.isHidden = true
+        closeButton.alphaValue = 0                       // fades in while the mouse is over the tile
         addSubview(closeButton)
 
         if let thumbnail { setThumbnail(thumbnail) } else { showIconPlaceholder() }
@@ -136,7 +131,7 @@ final class WindowTileView: NSView {
         } else {
             titleLabel.frame = NSRect(x: textX, y: (footerH - 16) / 2 + 1, width: textW, height: 16)
         }
-        closeButton.frame = NSRect(x: thumbRect.minX + 8, y: thumbRect.maxY - 30, width: 22, height: 22)
+        closeButton.frame = NSRect(x: thumbRect.minX + 8, y: thumbRect.maxY - 32, width: 24, height: 24)
         if let tagView { tagView.frame.origin = NSPoint(x: thumbRect.maxX - tagView.frame.width - 8, y: thumbRect.maxY - tagView.frame.height - 8) }
     }
 
@@ -161,8 +156,20 @@ final class WindowTileView: NSView {
 
     override func mouseDown(with event: NSEvent) { onClick?(index) }
     override func mouseMoved(with event: NSEvent) { onHover?(index) }
-    override func mouseEntered(with event: NSEvent) { onHover?(index); closeButton.isHidden = false }
-    override func mouseExited(with event: NSEvent) { closeButton.isHidden = true }
+    override func mouseEntered(with event: NSEvent) { onHover?(index); setCloseVisible(true) }
+    override func mouseExited(with event: NSEvent) { setCloseVisible(false) }
+
+    /// Fades the close button in / out (instant when Reduce motion is on).
+    private func setCloseVisible(_ visible: Bool) {
+        guard OverlayTheme.motionEnabled else { closeButton.alphaValue = visible ? 1 : 0; return }
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = 0.12
+            closeButton.animator().alphaValue = visible ? 1 : 0
+        }
+    }
+
+    /// Previews / tests: show the close button without a mouse (`pointedAt` draws its red state).
+    func debugShowCloseButton(pointedAt: Bool) { closeButton.alphaValue = 1; closeButton.forceHover = pointedAt }
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
     @objc private func closeTapped() { onClose?(index) }
 }
@@ -204,6 +211,7 @@ final class SwitcherPanel: NSPanel {
                  thumbnail: (CGWindowID) -> NSImage?) {
         let wasVisible = isVisible
         if glass.style != OverlayTheme.style { glass = OverlayTheme.makeGlass(); contentView = glass.root }   // the look was changed in Preferences
+        glass.applyOpacity(OverlayTheme.opacity)                                                                  // ...or its transparency
         tiles.forEach { $0.removeFromSuperview() }
         tiles.removeAll()
         captionLabel?.removeFromSuperview(); captionLabel = nil
@@ -218,6 +226,7 @@ final class SwitcherPanel: NSPanel {
         let height = CGFloat(layout.rows) * tile.height + CGFloat(layout.rows - 1) * sp + 2 * pad + header
         let leftInset = (width - gridWidth) / 2
         glass.root.setFrameSize(NSSize(width: width, height: height))
+        glass.backdrop.frame = glass.root.bounds
         glass.content.frame = glass.root.bounds
 
         glass.content.addSubview(ring)
@@ -285,6 +294,8 @@ final class SwitcherPanel: NSPanel {
 
     /// The panel's picture, for tests and previews (`--render-overlay`).
     var contentSnapshotView: NSView { glass.root }
+    /// Previews: show the close button on a tile (optionally in its pointed-at state).
+    func debugShowCloseButton(on index: Int, pointedAt: Bool) { tiles.first { $0.index == index }?.debugShowCloseButton(pointedAt: pointedAt) }
     /// Where each tile is drawn (tests: do the arrow keys agree with what is on screen?).
     var debugTileFrames: [CGRect] { tiles.map(\.frame) }
 

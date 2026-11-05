@@ -105,7 +105,15 @@ struct PreferencesView: View {
                         ForEach(OverlayTheme.Style.allCases, id: \.rawValue) { Text($0.title).tag($0.rawValue) }
                     }
                     .pickerStyle(.segmented)
-                    Text("Glass is the clearest (real Liquid Glass on macOS 26); Frosted is in between; Dark is the heaviest and easiest to read over a busy desktop. Applies the next time an overlay opens.")
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack {
+                            Text("Transparency")
+                            Spacer()
+                            Text("\(Int((settings.overlayTransparency * 100).rounded()))%").foregroundStyle(.secondary).monospacedDigit()
+                        }
+                        Slider(value: $settings.overlayTransparency, in: 0...0.7, step: 0.05)
+                    }
+                    Text("Glass is the clearest look (real Liquid Glass on macOS 26); Frosted is in between; Dark is the heaviest and easiest to read over a busy desktop. Transparency fades only the glass: the tiles and text stay sharp. Applies the next time an overlay opens.")
                         .font(.caption).foregroundStyle(.secondary)
                     Toggle("Window switcher shortcut enabled", isOn: $settings.switcherEnabled)
                     Toggle("Include windows from other desktops", isOn: $settings.includeOtherDesktops)

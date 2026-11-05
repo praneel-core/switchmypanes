@@ -27,6 +27,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, KeyboardMonitorDelegat
     private var preferencesWindow: NSWindow?
     private var retryTimer: Timer?
     private var styleObserver: AnyCancellable?
+    private var transparencyObserver: AnyCancellable?
 
     // MARK: lifecycle
 
@@ -41,6 +42,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, KeyboardMonitorDelegat
 
         // The overlay look follows Preferences (panels pick it up the next time they appear).
         styleObserver = settings.$overlayStyle.sink { OverlayTheme.style = OverlayTheme.Style(rawValue: $0) ?? .glass }
+        transparencyObserver = settings.$overlayTransparency.sink { OverlayTheme.opacity = 1 - CGFloat(min(max($0, 0), 0.7)) }
         monitor.delegate = self
         monitor.isSuspended = { [settings] in settings.isRecordingShortcut }
         switcher.requiredModifierFlags = { [settings] in settings.switcherModifier.cgFlags }

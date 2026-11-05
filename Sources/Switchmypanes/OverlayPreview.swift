@@ -182,6 +182,16 @@ enum OverlayPreview {
             png(of: panel.contentSnapshotView, over: true, to: folder.appendingPathComponent("switcher-\(style.rawValue).png"))
         }
         OverlayTheme.style = .glass
+        for (label, o) in [("full", CGFloat(1.0)), ("default", 0.65), ("clear", 0.4)] {
+            OverlayTheme.opacity = o
+            let panel = make(all, selected: 1, caption: nil)
+            png(of: panel.contentSnapshotView, over: true, to: folder.appendingPathComponent("switcher-glass-\(label).png"))
+        }
+        OverlayTheme.opacity = 0.65
+        // the close button: shown on the second tile (resting) and the third (pointed at)
+        let closeDemo = make(Array(all.prefix(4)), selected: 1, caption: nil)
+        closeDemo.debugShowCloseButton(on: 1, pointedAt: false); closeDemo.debugShowCloseButton(on: 2, pointedAt: true)
+        png(of: closeDemo.contentSnapshotView, over: true, to: folder.appendingPathComponent("switcher-close-button.png"))
         let switcher = make(all, selected: 1, caption: nil)
         png(of: switcher.contentSnapshotView, over: true, to: folder.appendingPathComponent("switcher.png"))
         // 8 windows in 5 columns: the last row of 3 is centred (the case where Down used to land one tile off)
