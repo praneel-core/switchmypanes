@@ -13,11 +13,16 @@ public struct ShortcutConfig: Equatable {
     public var snapModifiers: ShortcutModifiers
     public var switcherEnabled: Bool
     public var snapEnabled: Bool
+    /// Option+Z opens the Snap Layouts picker.
+    public var layoutsEnabled: Bool
+    public var layoutsModifier: ShortcutModifiers
     public init(switcherModifier: ShortcutModifiers = .option,
                 snapModifiers: ShortcutModifiers = [.control, .option],
-                switcherEnabled: Bool = true, snapEnabled: Bool = true) {
+                switcherEnabled: Bool = true, snapEnabled: Bool = true,
+                layoutsEnabled: Bool = true, layoutsModifier: ShortcutModifiers = .option) {
         self.switcherModifier = switcherModifier; self.snapModifiers = snapModifiers
         self.switcherEnabled = switcherEnabled; self.snapEnabled = snapEnabled
+        self.layoutsEnabled = layoutsEnabled; self.layoutsModifier = layoutsModifier
     }
 }
 
@@ -30,12 +35,17 @@ public enum KeyAction: Equatable {
     case switcherCancel
     case switcherCommit                    // modifier released
     case snap(ArrowKey, moveToDisplay: Bool)
+    // Snap Layouts picker
+    case layoutsOpen
+    case pickerMove(ArrowKey)
+    case pickerChoose(Int)                 // digit key, 1...9
+    case pickerConfirm, pickerSkip, pickerCancel
 }
 
 /// Decides what a key press means. The event tap only ever acts on what this returns,
 /// so "which keys do we swallow" is defined in exactly one, testable, place.
 public enum KeyClassifier {
-    public static let tab: Int64 = 48, escape: Int64 = 53
+    public static let tab: Int64 = 48, escape: Int64 = 53, z: Int64 = 6, space: Int64 = 49, returnKey: Int64 = 36, enter: Int64 = 76
     public static let left: Int64 = 123, right: Int64 = 124, down: Int64 = 125, up: Int64 = 126
 
     public static func arrow(for keyCode: Int64) -> ArrowKey? {
@@ -48,8 +58,29 @@ public enum KeyClassifier {
         }
     }
 
+    /// Digit row keys 1...9 (key codes are not in order on a Mac keyboard).
+    public static func digit(for keyCode: Int64) -> Int? {
+        [18: 1, 19: 2, 20: 3, 21: 4, 23: 5, 22: 6, 26: 7, 28: 8, 25: 9][keyCode]
+    }
+
     public static func classifyKeyDown(keyCode: Int64, flags: ShortcutModifiers, isRepeat: Bool,
-                                       switcherActive: Bool, config: ShortcutConfig) -> KeyAction {
+                                       switcherActive: Bool, pickerActive: Bool = false,
+                                       config: ShortcutConfig) -> KeyAction {
+        if pickerActive {
+            // The picker is modal: it owns the keyboard, so stray typing never reaches the app behind it.
+            // Command shortcuts (Cmd+Q, Cmd+H, ...) are left alone.
+            if flags.contains(.command) { return .passThrough }
+            switch keyCode {
+            case escape: return .pickerCancel
+            case returnKey, enter: return .pickerConfirm
+            case space: return .pickerSkip
+            case tab: return .pickerMove(flags.contains(.shift) ? .left : .right)
+            default:
+                if let a = arrow(for: keyCode) { return .pickerMove(a) }
+                if let n = digit(for: keyCode) { return .pickerChoose(n) }
+                return .swallow
+            }
+        }
         if switcherActive {
             // Safety net: if we somehow missed the modifier release, commit now.
             guard flags.contains(config.switcherModifier) else { return .switcherCommit }
@@ -63,6 +94,9 @@ public enum KeyClassifier {
         }
         if config.switcherEnabled, keyCode == tab, flags.subtracting(.shift) == config.switcherModifier {
             return isRepeat ? .swallow : .switcherOpen(reverse: flags.contains(.shift))
+        }
+        if config.layoutsEnabled, keyCode == z, flags == config.layoutsModifier {
+            return isRepeat ? .swallow : .layoutsOpen
         }
         if config.snapEnabled, let a = arrow(for: keyCode), !config.snapModifiers.isEmpty {
             if flags == config.snapModifiers { return isRepeat ? .swallow : .snap(a, moveToDisplay: false) }

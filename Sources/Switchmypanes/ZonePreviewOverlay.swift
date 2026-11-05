@@ -10,7 +10,7 @@ final class ZonePreviewOverlay {
     init() {
         panel = NSPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: true)
         panel.isFloatingPanel = true
-        panel.level = .popUpMenu
+        panel.level = .statusBar   // below the picker panels (.popUpMenu), above normal windows
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.hasShadow = false

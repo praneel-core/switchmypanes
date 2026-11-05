@@ -54,12 +54,17 @@ final class SnapController {
         }
     }
 
-    /// Called when a window was dragged to an edge: snap it, remembering where it was BEFORE the drag
+    /// Put a window into a frame chosen by a picker or a drag, remembering where it was BEFORE
     /// so that "Down" (restore) puts it back there.
-    func snapDragged(window: AXUIElement, pid: pid_t, to zone: SnapZone, on display: DisplayInfo, preDragFrame: CGRect) {
+    func place(window: AXUIElement, pid: pid_t, target: CGRect, on display: DisplayInfo, preFrame: CGRect) {
         let wid = ids.windowID(of: window).map { Int($0) } ?? Int(truncatingIfNeeded: CFHash(window))
-        restore.willSnap(WindowKey(pid: pid, id: wid), currentFrame: preDragFrame, wasSnapped: false)
-        WindowMover.apply(SnapEngine.frame(for: zone, in: display.visibleFrame, gap: CGFloat(settings.gap)),
-                          to: window, bounds: display.visibleFrame)
+        restore.willSnap(WindowKey(pid: pid, id: wid), currentFrame: preFrame, wasSnapped: false)
+        WindowMover.apply(target, to: window, bounds: display.visibleFrame)
+    }
+
+    /// Called when a window was dragged to an edge.
+    func snapDragged(window: AXUIElement, pid: pid_t, to zone: SnapZone, on display: DisplayInfo, preDragFrame: CGRect) {
+        place(window: window, pid: pid, target: SnapEngine.frame(for: zone, in: display.visibleFrame, gap: CGFloat(settings.gap)),
+              on: display, preFrame: preDragFrame)
     }
 }

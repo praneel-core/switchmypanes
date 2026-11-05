@@ -5,6 +5,7 @@ import SwitchmypanesCore
 @MainActor
 protocol KeyboardMonitorDelegate: AnyObject {
     var switcherActive: Bool { get }
+    var pickerActive: Bool { get }
     func keyboardMonitor(_ monitor: KeyboardMonitor, perform action: KeyAction)
 }
 
@@ -73,6 +74,7 @@ final class KeyboardMonitor {
             // macOS switches a tap off if it is ever too slow. Turn it back on, and never leave the switcher stuck open.
             if let tap { CGEvent.tapEnable(tap: tap, enable: true) }
             if delegate.switcherActive { delegate.keyboardMonitor(self, perform: .switcherCancel) }
+            if delegate.pickerActive { delegate.keyboardMonitor(self, perform: .pickerCancel) }
             swallowedKeyUps.removeAll()
             return pass
 
@@ -81,7 +83,8 @@ final class KeyboardMonitor {
             let code = event.getIntegerValueField(.keyboardEventKeycode)
             let isRepeat = event.getIntegerValueField(.keyboardEventAutorepeat) != 0
             let action = KeyClassifier.classifyKeyDown(keyCode: code, flags: Self.modifiers(event.flags), isRepeat: isRepeat,
-                                                       switcherActive: delegate.switcherActive, config: configProvider())
+                                                       switcherActive: delegate.switcherActive, pickerActive: delegate.pickerActive,
+                                                       config: configProvider())
             switch action {
             case .passThrough:
                 return pass

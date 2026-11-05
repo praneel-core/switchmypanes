@@ -43,6 +43,11 @@ struct PreferencesView: View {
                 Text("Modifier + Left / Right = half, Up = maximize, Down = restore or minimize. Left then Up = top-left quarter, and so on. Add Shift to move the window to another display. Dragging: left / right edge = half, top edge = maximize, corners = quarters.")
                     .font(.caption).foregroundStyle(.secondary)
             }
+            Section("Snap Layouts") {
+                Toggle("Option+Z opens the Snap Layouts picker", isOn: $settings.layoutsEnabled)
+                Text("Pick a layout (arrow keys, Return, or press 1–9), then choose a window for each area. Space skips an area, Esc stops. Note: Option+Z normally types “Ω”.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             Section {
                 Button("Reset to defaults") { settings.resetToDefaults() }
             }

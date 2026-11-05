@@ -11,6 +11,7 @@ Sources/
     Geometry.swift              coordinate conversion, DisplayInfo/DisplayLayout (multi-display)
     SnapEngine.swift            zone frames, zone detection, Win+Arrow state machine, RestoreMemory
     Switcher.swift              MRUList, SwitcherSelection (the "second window first" rule)
+    SnapLayout.swift            the nine Snap Layouts presets + gap-aware zone frames
     KeyClassifier.swift         "what does this key press mean": the only place that decides what we swallow
   Switchmypanes/              The app
     main.swift, AppDelegate.swift      wiring, lifecycle, switchmypanes:// URLs
@@ -24,7 +25,9 @@ Sources/
     ThumbnailService.swift             ScreenCaptureKit thumbnails + cache
     SwitcherController.swift, SwitcherPanel.swift     the Option+Tab overlay
     WindowActivator.swift              raise + focus a window
-    SnapController.swift, WindowMover.swift           keyboard snapping
+    SnapController.swift, WindowMover.swift           keyboard snapping; place() is shared by drag + layouts
+    DragSnapController.swift, ZonePreviewOverlay.swift  drag-to-edge with preview
+    LayoutPickerController.swift, LayoutChoicePanel.swift  Snap Layouts (Option+Z), reuses SwitcherPanel for the window step
     DisplayProvider.swift              the ONLY NSScreen -> top-left coordinate conversion
     AX.swift                           small Accessibility helpers
   CoreChecks/main.swift       test runner for SwitchmypanesCore (`swift run CoreChecks`)
@@ -102,8 +105,8 @@ Accessibility API is top-left; all logic uses top-left and converts once, in `Di
 
 ## Phase 2 plan (slots into the above)
 
-- Drag-to-edge: `DragSnapController` (mouse-drag monitor + AX window frame polling) + `ZonePreviewOverlay` (same panel recipe as `SwitcherPanel`), zones from `SnapEngine.frame`.
-- Snap Assist / Snap Layouts: `SnapAssistController`, `LayoutPicker`; new `SnapZone`-like `Layout` type in Core (list of rects in unit space), hotkey Option+Z added to `KeyClassifier`.
+- DONE: drag-to-edge (`DragSnapController`, `ZonePreviewOverlay`) and Snap Layouts (`LayoutPickerController`; modal keys are classified in `KeyClassifier` with a `pickerActive` flag; safety nets: outside click, 3-minute timeout, tap-disabled, pause and quit all cancel it).
+- Snap Assist: `SnapAssistController`. After a snap, offer the remaining windows for the free zone, reusing `SwitcherPanel` + `place()` like the layout picker.
 - Switcher: close-window X / Delete key (AX close button), minimized windows (AX list + `kAXMinimized`), other Spaces via a private `SpaceProvider`, all-screens / current-screen option, live thumbnails.
 - Preferences: shortcut recorder, launch at login (`SMAppService.mainApp`).
 

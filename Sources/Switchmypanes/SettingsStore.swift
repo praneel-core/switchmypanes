@@ -9,6 +9,8 @@ final class SettingsStore: ObservableObject {
 
     @Published var switcherEnabled: Bool { didSet { d.set(switcherEnabled, forKey: "switcherEnabled") } }
     @Published var snapEnabled: Bool { didSet { d.set(snapEnabled, forKey: "snapEnabled") } }
+    /// Option+Z opens the Snap Layouts picker.
+    @Published var layoutsEnabled: Bool { didSet { d.set(layoutsEnabled, forKey: "layoutsEnabled") } }
     /// Drag a window to a screen edge or corner to snap it.
     @Published var dragSnapEnabled: Bool { didSet { d.set(dragSnapEnabled, forKey: "dragSnapEnabled") } }
     /// Modifier combination for snapping (Control+Option by default). Stored as the raw bit set.
@@ -19,22 +21,23 @@ final class SettingsStore: ObservableObject {
     @Published var paused = false
 
     private init() {
-        d.register(defaults: ["switcherEnabled": true, "snapEnabled": true, "dragSnapEnabled": true, "gap": 0.0,
+        d.register(defaults: ["switcherEnabled": true, "snapEnabled": true, "dragSnapEnabled": true, "layoutsEnabled": true, "gap": 0.0,
                               "snapModifiers": ShortcutModifiers([.control, .option]).rawValue])
         switcherEnabled = d.bool(forKey: "switcherEnabled")
         snapEnabled = d.bool(forKey: "snapEnabled")
         dragSnapEnabled = d.bool(forKey: "dragSnapEnabled")
+        layoutsEnabled = d.bool(forKey: "layoutsEnabled")
         snapModifiers = ShortcutModifiers(rawValue: d.integer(forKey: "snapModifiers"))
         gap = d.double(forKey: "gap")
     }
 
     var config: ShortcutConfig {
         ShortcutConfig(switcherModifier: .option, snapModifiers: snapModifiers,
-                       switcherEnabled: switcherEnabled, snapEnabled: snapEnabled)
+                       switcherEnabled: switcherEnabled, snapEnabled: snapEnabled, layoutsEnabled: layoutsEnabled)
     }
 
     func resetToDefaults() {
-        switcherEnabled = true; snapEnabled = true; dragSnapEnabled = true; gap = 0
+        switcherEnabled = true; snapEnabled = true; dragSnapEnabled = true; layoutsEnabled = true; gap = 0
         snapModifiers = [.control, .option]
     }
 }

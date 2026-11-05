@@ -106,6 +106,7 @@ final class SwitcherPanel: NSPanel {
 
     private let background = NSVisualEffectView()
     private var tiles: [WindowTileView] = []
+    private var captionLabel: NSTextField?
     private var initialMouse = NSPoint.zero
     var onClick: ((Int) -> Void)?
     var onHover: ((Int) -> Void)?
@@ -131,25 +132,38 @@ final class SwitcherPanel: NSPanel {
     }
 
     func present(windows: [WindowInfo], layout: SwitcherLayout, selected: Int, on screen: NSScreen,
-                 thumbnail: (CGWindowID) -> NSImage?) {
+                 caption: String? = nil, thumbnail: (CGWindowID) -> NSImage?) {
         tiles.forEach { $0.removeFromSuperview() }
         tiles.removeAll()
+        captionLabel?.removeFromSuperview(); captionLabel = nil
         initialMouse = NSEvent.mouseLocation
 
         let tile = layout.tile, sp = SwitcherLayout.spacing, pad = SwitcherLayout.padding
-        let size = NSSize(width: CGFloat(layout.columns) * tile.width + CGFloat(layout.columns - 1) * sp + 2 * pad,
-                          height: CGFloat(layout.rows) * tile.height + CGFloat(layout.rows - 1) * sp + 2 * pad)
+        let header: CGFloat = caption == nil ? 0 : 30
+        let size = NSSize(width: max(CGFloat(layout.columns) * tile.width + CGFloat(layout.columns - 1) * sp + 2 * pad, caption == nil ? 0 : 560),
+                          height: CGFloat(layout.rows) * tile.height + CGFloat(layout.rows - 1) * sp + 2 * pad + header)
+        let gridWidth = CGFloat(layout.columns) * tile.width + CGFloat(layout.columns - 1) * sp
+        let leftInset = (size.width - gridWidth) / 2
         for (i, w) in windows.enumerated() {
             let row = i / layout.columns, col = i % layout.columns
             // Row 0 is at the top, but AppKit's origin is bottom-left.
-            let origin = NSPoint(x: pad + CGFloat(col) * (tile.width + sp),
-                                 y: size.height - pad - tile.height - CGFloat(row) * (tile.height + sp))
+            let origin = NSPoint(x: leftInset + CGFloat(col) * (tile.width + sp),
+                                 y: size.height - pad - header - tile.height - CGFloat(row) * (tile.height + sp))
             let v = WindowTileView(frame: NSRect(origin: origin, size: tile), index: i, info: w, thumbnail: thumbnail(w.id))
             v.onClick = { [weak self] in self?.onClick?($0) }
             v.onHover = { [weak self] idx in self?.hoverIfMouseMoved(idx) }
             v.isSelected = (i == selected)
             background.addSubview(v)
             tiles.append(v)
+        }
+        if let caption {
+            let l = NSTextField(labelWithString: caption)
+            l.font = .systemFont(ofSize: 13, weight: .medium)
+            l.textColor = .secondaryLabelColor
+            l.alignment = .center
+            l.frame = NSRect(x: pad, y: size.height - pad - 18, width: size.width - 2 * pad, height: 18)
+            background.addSubview(l)
+            captionLabel = l
         }
         let vf = screen.visibleFrame
         setFrame(NSRect(x: vf.midX - size.width / 2, y: vf.midY - size.height / 2, width: size.width, height: size.height), display: true)

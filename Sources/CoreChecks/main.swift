@@ -233,5 +233,52 @@ do {
     eq(KeyClassifier.classifyFlagsChanged(flags: [], switcherActive: false, config: cfg), .passThrough, "inactive ignores")
 }
 
+section("Snap Layouts")
+do {
+    let layouts = SnapLayout.presets
+    eq(layouts.count, 9, "nine presets (digit keys 1-9)")
+    let v = CGRect(x: 0, y: 25, width: 1440, height: 800)
+    for l in layouts {
+        // At gap 0 the zones tile the screen exactly: total area equals the screen and nothing overlaps.
+        let fs = (0..<l.zones.count).map { l.frame(ofZone: $0, in: v) }
+        eq(fs.reduce(0) { $0 + $1.width * $1.height }, v.width * v.height, "\(l.name): zones cover the screen")
+        var overlap = false
+        for i in 0..<fs.count { for j in (i + 1)..<fs.count where fs[i].intersection(fs[j]).width > 0.5 && fs[i].intersection(fs[j]).height > 0.5 { overlap = true } }
+        check(!overlap, "\(l.name): no overlap")
+        check(fs.allSatisfy { v.contains($0) }, "\(l.name): inside the screen")
+    }
+    eq(layouts[0].frame(ofZone: 0, in: v), SnapEngine.frame(for: .left, in: v), "halves match the left snap zone")
+    let grid = layouts[4]
+    eq(grid.frame(ofZone: 3, in: v), SnapEngine.frame(for: .bottomRight, in: v), "grid zone 4 = bottom-right quarter")
+    // gap: exactly `gap` between neighbours, and `gap` to the screen edge, even with awkward thirds
+    let cols = layouts[3], odd = CGRect(x: 0, y: 0, width: 1001, height: 700)
+    let a = cols.frame(ofZone: 0, in: odd, gap: 10), b = cols.frame(ofZone: 1, in: odd, gap: 10), c = cols.frame(ofZone: 2, in: odd, gap: 10)
+    eq(b.minX - a.maxX, 10, "gap between column 1 and 2"); eq(c.minX - b.maxX, 10, "gap between column 2 and 3")
+    eq(a.minX, 10, "gap at left edge"); eq(c.maxX, 991, "gap at right edge"); eq(a.minY, 10, "gap at top")
+    let g = grid.frame(ofZone: 0, in: odd, gap: 8), g2 = grid.frame(ofZone: 3, in: odd, gap: 8)
+    eq(g2.minY - g.maxY, 8, "gap between grid rows"); eq(g2.minX - g.maxX, 8, "gap between grid columns")
+}
+
+section("Picker keys")
+do {
+    let cfg = ShortcutConfig()
+    func kd(_ code: Int64, _ f: ShortcutModifiers = [], rep: Bool = false, picker: Bool = false, active: Bool = false) -> KeyAction {
+        KeyClassifier.classifyKeyDown(keyCode: code, flags: f, isRepeat: rep, switcherActive: active, pickerActive: picker, config: cfg)
+    }
+    eq(kd(6, .option), .layoutsOpen, "Option+Z opens Snap Layouts")
+    eq(kd(6, .option, rep: true), .swallow, "repeat swallowed")
+    eq(kd(6, []), .passThrough, "plain Z untouched"); eq(kd(6, [.option, .shift]), .passThrough, "Option+Shift+Z untouched")
+    var off = cfg; off.layoutsEnabled = false
+    eq(KeyClassifier.classifyKeyDown(keyCode: 6, flags: .option, isRepeat: false, switcherActive: false, config: off), .passThrough, "disabled")
+    eq(kd(6, .option, active: true), .passThrough, "not while the Option+Tab switcher is open")
+    eq(kd(53, picker: true), .pickerCancel, "Esc cancels"); eq(kd(36, picker: true), .pickerConfirm, "Return confirms")
+    eq(kd(76, picker: true), .pickerConfirm, "keypad Enter confirms"); eq(kd(49, picker: true), .pickerSkip, "Space skips")
+    eq(kd(124, picker: true), .pickerMove(.right), "arrow moves"); eq(kd(48, [.shift], picker: true), .pickerMove(.left), "Shift+Tab moves back")
+    eq(kd(18, picker: true), .pickerChoose(1), "1"); eq(kd(25, picker: true), .pickerChoose(9), "9"); eq(kd(23, picker: true), .pickerChoose(5), "5")
+    eq(kd(0, picker: true), .swallow, "other keys are swallowed while the picker is open")
+    eq(kd(12, .command, picker: true), .passThrough, "Cmd+Q still works")
+    eq(kd(6, .option, picker: true), .swallow, "Option+Z inside the picker does not reopen it")
+}
+
 print("\n\(total - failures)/\(total) checks passed")
 exit(failures == 0 ? 0 : 1)
