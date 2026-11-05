@@ -89,6 +89,13 @@ snap shortcuts, and, while the overlay is open, Tab / arrows / Esc.
 
 ## Diagnostics
 
+**Linked resizing not reacting?** Quit Switchmypanes from its menu, then run it from Terminal with logging:
+`SWITCHMYPANES_DEBUG=1 ~/Applications/Switchmypanes.app/Contents/MacOS/Switchmypanes`, reproduce the problem (fill a
+layout or pick a window in Snap Assist, then drag the divider) and send me the lines starting with `[linked]`. They show
+whether the group was created, whether the apps report resizes, and what was decided. `Switchmypanes --selftest-linked`
+runs a built-in check with two nearly invisible helper windows (about 15 seconds, bottom-right corner) and prints
+PASS/FAIL.
+
 `build/Switchmypanes.app/Contents/MacOS/Switchmypanes --list-windows` prints, in the terminal, the windows the
 switcher would show (app, title, desktop / minimized status, and whether a thumbnail could be captured), then exits. Useful for "why is this window (not) listed".
 

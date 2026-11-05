@@ -23,6 +23,94 @@ if CommandLine.arguments.contains("--list-windows") {
     exit(0)
 }
 
+// Diagnostics for linked resizing (nothing here runs in normal use).
+//  `--selftest-host <title>`  : a helper process with ONE nearly invisible window (used by the self-test below).
+//  `--selftest-linked`        : spawns two such helper processes, links their windows as a group, "drags" the
+//                               divider through Accessibility and reports whether the neighbour followed. It runs
+//                               once with Accessibility notifications and once with mouse-drag polling only.
+//                               The windows are 2% opaque, in the bottom-right corner, for about 15 seconds.
+if let hostIndex = CommandLine.arguments.firstIndex(of: "--selftest-host") {
+    let title = CommandLine.arguments.dropFirst(hostIndex + 1).first ?? "selftest"
+    MainActor.assumeIsolated {
+        let app = NSApplication.shared
+        app.setActivationPolicy(.accessory)
+        let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 300, height: 160), styleMask: [.titled, .resizable], backing: .buffered, defer: false)
+        w.title = title; w.alphaValue = 0.02; w.ignoresMouseEvents = true; w.isReleasedWhenClosed = false
+        w.orderFrontRegardless()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 40) { exit(0) }     // never linger
+        app.run()
+    }
+    exit(0)
+}
+
+if CommandLine.arguments.contains("--selftest-linked") {
+    var allPassed = true
+    MainActor.assumeIsolated {
+        let app = NSApplication.shared
+        app.setActivationPolicy(.accessory)
+        app.finishLaunching()
+        func spin(_ s: Double) { RunLoop.current.run(until: Date().addingTimeInterval(s)) }
+        func line(_ s: String) { print(s); fflush(stdout) }
+        let ids = PrivateAXWindowIDProvider()
+        guard let exe = Bundle.main.executablePath, let display = DisplayProvider.layout().displays.first else { line("setup failed"); allPassed = false; return }
+        let visible = display.visibleFrame
+        let base = CGRect(x: visible.maxX - 660, y: visible.maxY - 220, width: 600, height: 160)
+
+        func host(_ title: String) -> Process {
+            let p = Process(); p.executableURL = URL(fileURLWithPath: exe); p.arguments = ["--selftest-host", title]
+            try? p.run(); return p
+        }
+        func axWindow(of p: Process) -> AXUIElement? { AX.windows(of: AX.app(pid: p.processIdentifier)).first }
+
+        @MainActor func scenario(_ name: String, notifications: Bool) -> Bool {
+            line("\n== \(name)")
+            let pa = host("selftest-A"), pb = host("selftest-B")
+            defer { pa.terminate(); pb.terminate() }
+            spin(1.8)
+            guard let a = axWindow(of: pa), let b = axWindow(of: pb), let ida = ids.windowID(of: a), let idb = ids.windowID(of: b) else {
+                line("FAIL: could not reach the helper windows through Accessibility"); return false
+            }
+            let controller = LinkedGroupController(settings: SettingsStore.shared)
+            controller.useNotifications = notifications
+            controller.debugLog = { line("   [linked] \($0)") }
+            WindowMover.apply(CGRect(x: base.minX, y: base.minY, width: 300, height: 160), to: a, bounds: visible)
+            WindowMover.apply(CGRect(x: base.minX + 300, y: base.minY, width: 300, height: 160), to: b, bounds: visible)
+            spin(0.4)
+            line("placed: A \(AX.frame(a).map { "\($0)" } ?? "?")  B \(AX.frame(b).map { "\($0)" } ?? "?")")
+            controller.register([.init(pid: pa.processIdentifier, windowID: ida, element: a), .init(pid: pb.processIdentifier, windowID: idb, element: b)], gap: 0, bounds: visible)
+            spin(0.9)
+
+            @MainActor func drag(_ delta: CGFloat) {
+                let start = AX.frame(a)!
+                for step in 1...5 {
+                    AX.setSize(a, CGSize(width: start.width + delta / 5 * CGFloat(step), height: start.height))
+                    if !notifications { controller.poll() }          // what a real mouse-drag event triggers
+                    spin(0.06)
+                }
+                spin(0.8)
+            }
+            let startB = AX.frame(b)!
+            drag(100)
+            let a1 = AX.frame(a)!, b1 = AX.frame(b)!
+            line("divider dragged right: A \(a1)  B \(b1)")
+            let followed = abs(b1.minX - a1.maxX) <= 2 && b1.minX > startB.minX + 50
+            drag(-100)
+            let a2 = AX.frame(a)!, b2 = AX.frame(b)!
+            line("dragged back:          A \(a2)  B \(b2)")
+            let back = abs(b2.minX - a2.maxX) <= 2 && abs(b2.minX - startB.minX) <= 4
+            line(followed ? "PASS: neighbour followed" : "FAIL: neighbour did NOT follow")
+            line(back ? "PASS: followed back (link intact)" : "FAIL: dragging back broke the link")
+            controller.removeAll()
+            return followed && back
+        }
+        let one = scenario("separate processes, Accessibility notifications", notifications: true)
+        let two = scenario("separate processes, mouse-drag polling only (no notifications)", notifications: false)
+        allPassed = one && two
+        line("\n" + (allPassed ? "ALL PASSED" : "SOMETHING FAILED"))
+    }
+    exit(allPassed ? 0 : 1)
+}
+
 let app = NSApplication.shared
 let delegate = MainActor.assumeIsolated { AppDelegate() }
 app.delegate = delegate

@@ -34,13 +34,22 @@ final class LinkedGroupController {
         init(gap: CGFloat, bounds: CGRect) { self.gap = gap; self.bounds = bounds }
     }
 
+    /// Diagnostics only (self-test, or SWITCHMYPANES_DEBUG=1): describes what the controller is doing.
+    var debugLog: ((String) -> Void)? = ProcessInfo.processInfo.environment["SWITCHMYPANES_DEBUG"] == "1" ? { FileHandle.standardError.write(Data(("[linked] " + $0 + "\n").utf8)) } : nil
+    private func log(_ s: @autoclosure () -> String) { debugLog?(s()) }
+
     struct Placed { let pid: pid_t; let windowID: CGWindowID; let element: AXUIElement }
 
     private let settings: SettingsStore
     private var groups: [Group] = []
     private var learnedMin: [pid_t: CGSize] = [:]      // an app's windows share their minimum, so remember it per app
     private var observers: [pid_t: AXObserver] = [:]
-    private let notifications = [kAXResizedNotification, kAXMovedNotification, kAXUIElementDestroyedNotification]
+    // Apps differ in which notifications they send for a window's size / position, so ask for all of them.
+    private let notifications = [kAXResizedNotification, kAXWindowResizedNotification, kAXMovedNotification,
+                                 kAXWindowMovedNotification, kAXUIElementDestroyedNotification]
+    /// Tests can switch notifications off to prove the mouse-drag polling works on its own.
+    var useNotifications = true
+    private var mouseMonitors: [Any] = []
 
     init(settings: SettingsStore) {
         self.settings = settings
@@ -54,6 +63,7 @@ final class LinkedGroupController {
 
     /// Called when Snap Layouts finishes. Needs at least two placed windows.
     func register(_ placed: [Placed], gap: CGFloat, bounds: CGRect) {
+        log("register called with \(placed.count) windows; enabled=\(settings.linkedResizeEnabled) trusted=\(AXIsProcessTrusted())")
         guard settings.linkedResizeEnabled, placed.count >= 2, AXIsProcessTrusted() else { return }
         for p in placed { unlink(pid: p.pid, windowID: p.windowID) }      // a window belongs to one group at a time
         // Give the apps a moment to settle, then record where the windows REALLY are (some refuse exact sizes).
@@ -62,14 +72,18 @@ final class LinkedGroupController {
             let group = Group(gap: gap, bounds: bounds)
             for (i, p) in placed.enumerated() {
                 // A window that cannot be resized at all would only break the group's flush edges: leave it out.
-                guard let f = AX.frame(p.element), AX.isSettable(p.element, kAXSizeAttribute) else { continue }
+                let frame = AX.frame(p.element), resizable = AX.isSettable(p.element, kAXSizeAttribute)
+                self.log("member \(i): pid \(p.pid) window \(p.windowID) frame \(frame.map { "\($0)" } ?? "nil") resizable \(resizable)")
+                guard let f = frame, resizable else { continue }
                 let m = Member(id: i, pid: p.pid, windowID: p.windowID, element: p.element, frame: f)
                 m.minSize = self.learnedMin[p.pid]
                 group.members[i] = m
             }
+            self.log("group has \(group.members.count) linked members")
             guard group.members.count >= 2 else { return }
             self.groups.append(group)
             for m in group.members.values { self.watch(m) }
+            self.updateMouseMonitors()
         }
     }
 
@@ -84,6 +98,7 @@ final class LinkedGroupController {
         groups.removeAll()
         for (_, o) in observers { CFRunLoopRemoveSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(o), .commonModes) }
         observers.removeAll()
+        updateMouseMonitors()
     }
 
     private func remove(_ m: Member, from g: Group) {
@@ -92,7 +107,31 @@ final class LinkedGroupController {
         if g.members.count < 2 {                       // a group of one is not a group
             for rest in g.members.values { unwatch(rest) }
             groups.removeAll { $0 === g }
+            updateMouseMonitors()
         }
+    }
+
+    // MARK: mouse-drag polling (does not depend on the dragged app sending notifications)
+
+    /// While a group exists, every mouse-drag event re-reads the group's windows. That is how a resize by the mouse is
+    /// noticed even for apps that send no (or late) Accessibility notifications. Mouse events need no extra permission.
+    private func updateMouseMonitors() {
+        if groups.isEmpty {
+            mouseMonitors.forEach { NSEvent.removeMonitor($0) }
+            mouseMonitors.removeAll()
+        } else if mouseMonitors.isEmpty {
+            for mask: NSEvent.EventTypeMask in [.leftMouseDragged, .leftMouseUp] {
+                if let m = NSEvent.addGlobalMonitorForEvents(matching: mask, handler: { [weak self] _ in
+                    MainActor.assumeIsolated { self?.poll() }
+                }) { mouseMonitors.append(m) }
+            }
+        }
+    }
+
+    /// Looks at every member of every group. Changes are applied exactly as for a notification (and a change that was
+    /// already handled is simply "no change").
+    func poll() {
+        for g in groups { for m in Array(g.members.values) where g.members[m.id] != nil { handle(m, in: g) } }
     }
 
     // MARK: Accessibility observers
@@ -114,7 +153,10 @@ final class LinkedGroupController {
         }
         guard let observer else { return }
         let me = Unmanaged.passUnretained(self).toOpaque()
-        for n in notifications { AXObserverAddNotification(observer, m.element, n as CFString, me) }
+        for n in notifications where useNotifications {
+            let r = AXObserverAddNotification(observer, m.element, n as CFString, me)
+            log("watch window \(m.windowID) \(n): \(r == .success ? "ok" : "ERROR \(r.rawValue)")")
+        }
     }
 
     private func unwatch(_ m: Member) {
@@ -123,9 +165,10 @@ final class LinkedGroupController {
     }
 
     private func changed(_ element: AXUIElement, _ notification: String) {
+        log("notification \(notification)")
         for g in groups {
             guard let m = g.members.values.first(where: { CFEqual($0.element, element) }) else { continue }
-            if notification == kAXUIElementDestroyedNotification { remove(m, from: g); return }
+            if notification == (kAXUIElementDestroyedNotification as String) { remove(m, from: g); return }
             handle(m, in: g)
             return
         }
@@ -135,6 +178,7 @@ final class LinkedGroupController {
         guard settings.linkedResizeEnabled, !settings.paused, let actual = AX.frame(m.element) else { return }
         if Date() < m.ignoreUntil { return }                             // echo of our own change
 
+        log("window \(m.windowID): model \(m.frame) actual \(actual) -> \(LinkedResize.classify(old: m.frame, new: actual))")
         switch LinkedResize.classify(old: m.frame, new: actual) {
         case .none:
             return
@@ -160,7 +204,8 @@ final class LinkedGroupController {
         for (id, target) in result {
             guard let member = g.members[id] else { continue }
             if LinkedResize.classify(old: member.frame, new: target) != .none {
-                member.ignoreUntil = Date().addingTimeInterval(0.3)
+                // Ignore this window while the app catches up: it must not be mistaken for the user resizing it back.
+                member.ignoreUntil = Date().addingTimeInterval(0.5)
                 WindowMover.apply(target, to: member.element, bounds: g.bounds)
             }
             member.frame = target
