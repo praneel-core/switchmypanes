@@ -22,6 +22,7 @@ final class SnapController {
         onBeforeSnap()
         guard AXIsProcessTrusted(),
               let app = NSWorkspace.shared.frontmostApplication, app.processIdentifier != getpid() else { return }
+        guard !AppExclusions.isExcluded(bundleID: app.bundleIdentifier, for: .snapping, in: settings.appExclusions) else { return }
         let appEl = AX.app(pid: app.processIdentifier)
         guard let window = AX.focusedWindow(of: appEl),
               AX.bool(window, "AXFullScreen") != true,            // full-screen windows are managed by macOS

@@ -11,6 +11,9 @@ Free, local only: no accounts, no network calls, no analytics. Phase 1 of 3: see
   Cmd+Tab is untouched.
 - **Drag to snap**: drag a window by its title bar to the left or right edge (half), top edge (maximize) or a corner
   (quarter). A translucent preview shows where it will land; release to snap. Edges shared with another display are ignored.
+- **Excluded apps** (Preferences → Excluded apps): pick apps Switchmypanes should leave alone, per app: *Hide from
+  switcher* (not listed in Option+Tab) and/or *Never snap* (the snap shortcuts, dragging to edges, Snap Assist and Snap
+  Layouts ignore it). Separate from the "never take previews of" list, which only controls pictures.
 - **Close windows from the overlay**: hover a tile and click the red ✕, or highlight a window and press **Delete** or
   **W**. It closes exactly as if you had clicked its close button, so "Save changes?" prompts still appear (the tile
   stays until the window is really gone). For a window on another desktop (including a full-screen app) it first switches to that desktop, then closes it.
@@ -118,4 +121,5 @@ No automated tests can click macOS permission dialogs; see the manual test check
 19. Previews: work in two windows on desktop 1 for a few seconds each, switch to another desktop, Option+Tab: both should show pictures. In Preferences, add an app to "Never take previews of": its tile should show only the icon. Switch the toggle off and confirm new windows stop getting pictures. If Activity Monitor shows Switchmypanes using noticeable CPU/energy while idle, tell me.
 20. Preferences: open it (it should fit your screen and scroll). Click the Snap Layouts shortcut, press ⌃⌥B: it changes; press Option+Z: it should now do nothing, ⌃⌥B opens the picker. Try ⌘Tab for the switcher (refused), ⌥← for snapping (refused). Record ⌃⌥Tab for the switcher: hold both, Tab cycles, releasing EITHER key commits. Use the reset arrows. While recording, pressing the current shortcut must NOT trigger it.
 21. Open at login: turn it on from the installed copy. If macOS asks, approve it in System Settings → General → Login Items; log out and in (or restart) and check that the menu bar icon is back. Turn it off again to test that too.
-22. Menu bar: Pause stops all shortcuts; Resume restores; Quit removes the icon.
+22. Exclusions: in Preferences → Excluded apps, add Safari with only "Hide from switcher" ticked: its windows disappear from Option+Tab but still snap. Untick that and tick "Never snap": Control+Option+Left, dragging to an edge, and Snap Assist/Layouts all ignore Safari's windows. While IN an excluded app, Option+Tab should go to your most recent other window straight away. Remove the entry with the minus button: everything returns.
+23. Menu bar: Pause stops all shortcuts; Resume restores; Quit removes the icon.

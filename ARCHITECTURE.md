@@ -13,6 +13,7 @@ Sources/
     Switcher.swift              MRUList, SwitcherSelection (the "second window first" rule)
     SnapLayout.swift            the nine Snap Layouts presets + gap-aware zone frames
     ShortcutRules.swift         shortcut display names + ShortcutValidator (which combinations are allowed)
+    AppExclusions.swift         per-app exclusion rules (switcher / snapping scopes) + shared bundle-ID matching
     PreviewPolicy.swift         never-capture list + when automatic captures may run
     KeyClassifier.swift         "what does this key press mean": the only place that decides what we swallow
   Switchmypanes/              The app
@@ -124,7 +125,7 @@ Accessibility API is top-left; all logic uses top-left and converts once, in `Di
 ## Phase 3 plan
 
 - Snap groups and shared-edge resizing (needs an AX observer for move/resize notifications).
-- Per-app exclusions: apps the switcher ignores and/or snapping never moves.
+- DONE: per-app exclusions. `AppExclusion` (Core, tested) has two scopes; `WindowInventory.snapshot(for:)` filters the switcher and the Snap Assist / Snap Layouts lists, and `SnapController` / `DragSnapController` check before moving a window. Stored as JSON in UserDefaults.
 - Task View-style overview.
 - Live-updating thumbnails.
 - Optional small item: "all screens / current screen only" switcher setting.

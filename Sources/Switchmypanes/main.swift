@@ -5,10 +5,13 @@ import SwitchmypanesCore
 // desktop / minimized status), then exits. Handy for checking what macOS reports. Prints to the terminal only.
 if CommandLine.arguments.contains("--list-windows") {
     MainActor.assumeIsolated {
-        let inventory = WindowInventory(ids: PrivateAXWindowIDProvider(), spaces: makeSpaceProvider(), options: { SpaceFilterOptions() })
+        // `--exclude=com.example.App` applies the "hide from switcher" exclusion, to check the rule against real windows.
+        let excluded = CommandLine.arguments.compactMap { $0.hasPrefix("--exclude=") ? String($0.dropFirst(10)) : nil }
+        let inventory = WindowInventory(ids: PrivateAXWindowIDProvider(), spaces: makeSpaceProvider(), options: { SpaceFilterOptions() },
+                                        exclusions: { excluded.map { AppExclusion(pattern: $0) } })
         inventory.startTracking()
         RunLoop.current.run(until: Date().addingTimeInterval(3.5))   // lets the background minimized / hidden check finish
-        let windows = inventory.snapshot(includeOtherSpaces: true)
+        let windows = inventory.snapshot(includeOtherSpaces: true, for: excluded.isEmpty ? nil : .switcher)
         let thumbnails = ThumbnailService()
         thumbnails.captureInBackground(windowIDs: windows.filter(\.isOnCurrentSpace).map(\.id), minInterval: 0)
         RunLoop.current.run(until: Date().addingTimeInterval(3))     // let the captures finish

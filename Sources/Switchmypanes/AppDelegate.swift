@@ -7,7 +7,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, KeyboardMonitorDelegat
     private let settings = SettingsStore.shared
     private let ids = PrivateAXWindowIDProvider()
     private lazy var inventory = WindowInventory(ids: ids, spaces: makeSpaceProvider(),
-                                                 options: { [settings] in settings.spaceFilter })
+                                                 options: { [settings] in settings.spaceFilter },
+                                                 exclusions: { [settings] in settings.appExclusions })
     private let thumbnails = ThumbnailService()
     private lazy var previewKeeper = PreviewKeeper(thumbnails: thumbnails, settings: settings)
     private lazy var activator = WindowActivator(ids: ids)

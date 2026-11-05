@@ -52,7 +52,7 @@ final class LayoutPickerController {
     func begin() {
         guard !isActive, AXIsProcessTrusted() else { return }
         inventory.noteFrontmost()
-        let list = inventory.snapshot()
+        let list = inventory.snapshot(for: .snapping)
         guard !list.isEmpty else { return }
         let scr = DisplayProvider.screenUnderMouse()
         let id = DisplayProvider.displayID(of: scr)

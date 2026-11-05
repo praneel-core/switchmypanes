@@ -437,5 +437,25 @@ do {
     eq(kd(6, .option), .passThrough, "old Snap Layouts key no longer works")
 }
 
+section("App exclusions")
+do {
+    let list = [AppExclusion(pattern: "com.spotify.client", inSwitcher: true, inSnapping: false),
+                AppExclusion(pattern: "us.zoom.*", inSwitcher: false, inSnapping: true),
+                AppExclusion(pattern: "com.apple.calculator")]
+    func x(_ id: String?, _ s: ExclusionScope) -> Bool { AppExclusions.isExcluded(bundleID: id, for: s, in: list) }
+    check(x("com.spotify.client", .switcher), "Spotify hidden from the switcher")
+    check(!x("com.spotify.client", .snapping), "...but can still be snapped")
+    check(x("us.zoom.xos", .snapping), "Zoom (wildcard) not snapped"); check(!x("us.zoom.xos", .switcher), "...but still listed")
+    check(x("com.apple.calculator", .switcher) && x("com.apple.calculator", .snapping), "both scopes by default")
+    check(x("COM.SPOTIFY.CLIENT", .switcher), "case-insensitive")
+    check(!x("com.apple.Safari", .switcher) && !x("com.apple.Safari", .snapping), "other apps untouched")
+    check(!x(nil, .switcher), "no bundle ID: never excluded")
+    check(!AppExclusions.isExcluded(bundleID: "com.apple.calculator", for: .switcher, in: []), "empty list")
+    eq(AppExclusions.adding("com.foo.bar", to: []).count, 1, "add"); eq(AppExclusions.adding("COM.FOO.BAR", to: AppExclusions.adding("com.foo.bar", to: [])).count, 1, "no duplicates")
+    eq(AppExclusions.decode(AppExclusions.encode(list)), list, "survives saving and loading")
+    eq(AppExclusions.decode(nil), [], "missing data"); eq(AppExclusions.decode(Data("garbage".utf8)), [], "corrupt data")
+    check(BundlePattern.matches("com.a.*", bundleID: "com.a.b.c") && !BundlePattern.matches("com.a.*", bundleID: "com.ab"), "wildcard needs the dot")
+}
+
 print("\n\(total - failures)/\(total) checks passed")
 exit(failures == 0 ? 0 : 1)

@@ -7,12 +7,8 @@ public enum PreviewPolicy {
     ]
 
     public static func isExcluded(bundleID: String?, excluded: [String]) -> Bool {
-        guard let id = bundleID?.lowercased() else { return false }
-        for entry in excluded.map({ $0.lowercased() }) {
-            if entry.hasSuffix("*") { if id.hasPrefix(String(entry.dropLast())) { return true } }
-            else if id == entry { return true }
-        }
-        return false
+        guard let bundleID else { return false }
+        return excluded.contains { BundlePattern.matches($0, bundleID: bundleID) }
     }
 
     /// Should an automatic (background) capture happen right now? Manual captures, taken when you open the

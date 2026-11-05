@@ -21,6 +21,10 @@ struct PreferencesView: View {
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
 
+    private func addExclusion(_ bundleID: String) {
+        settings.appExclusions = AppExclusions.adding(bundleID, to: settings.appExclusions)
+    }
+
     private func addExcluded(_ bundleID: String) {
         if !settings.previewExcludedApps.contains(bundleID) { settings.previewExcludedApps.append(bundleID) }
     }
@@ -140,6 +144,33 @@ struct PreferencesView: View {
                             .buttonStyle(.link).font(.caption)
                     }
                 }
+            }
+            Section("Excluded apps") {
+                HStack {
+                    Text("Apps Switchmypanes should leave alone")
+                    Spacer()
+                    Menu("Add app…") {
+                        ForEach(runningApps(), id: \.id) { app in
+                            Button(app.name) { addExclusion(app.id) }
+                        }
+                    }.fixedSize()
+                }
+                if settings.appExclusions.isEmpty {
+                    Text("None yet. Add an app, then choose whether to hide it from the window switcher, stop snapping from moving it, or both.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                ForEach($settings.appExclusions) { $entry in
+                    HStack {
+                        Text(displayName(for: entry.pattern)).font(.callout)
+                        Spacer()
+                        Toggle("Hide from switcher", isOn: $entry.inSwitcher).toggleStyle(.checkbox)
+                        Toggle("Never snap", isOn: $entry.inSnapping).toggleStyle(.checkbox)
+                        Button { settings.appExclusions.removeAll { $0.id == entry.id } } label: { Image(systemName: "minus.circle") }
+                            .buttonStyle(.borderless)
+                    }
+                }
+                Text("“Hide from switcher”: its windows are not listed in the switcher. “Never snap”: the snap shortcuts, dragging to edges, Snap Assist and Snap Layouts all ignore its windows.")
+                    .font(.caption).foregroundStyle(.secondary)
             }
             Section("Snap Layouts") {
                 Toggle("Snap Layouts shortcut enabled", isOn: $settings.layoutsEnabled)

@@ -10,6 +10,7 @@ struct WindowInfo {
     let icon: NSImage?
     var placement: WindowPlacement = .currentSpace
     var spaceLabel: String? = nil       // "Desktop 2" / "Full screen" for windows on other Spaces
+    var bundleID: String? = nil         // used for the exclusion lists
     var isOnCurrentSpace: Bool { placement == .currentSpace }
     /// Accessibility can act on it directly (raise, close): visible windows and minimized / hidden ones.
     /// Windows on other desktops need a desktop switch first.
@@ -26,6 +27,7 @@ final class WindowInventory {
     private let ids: WindowIDProvider
     private let spaces: SpaceProvider
     private let options: () -> SpaceFilterOptions
+    private let exclusions: () -> [AppExclusion]
     private var titleCache: [CGWindowID: String] = [:]
     // Which windows Accessibility knows, per app. Used to hide helper windows (for example Chrome's full-screen
     // toolbar strip): they are drawn on screen but are not real windows, and clicking them does nothing.
@@ -50,8 +52,9 @@ final class WindowInventory {
     private var seenHiddenIDs: Set<CGWindowID> = []      // every not-drawn window seen by the latest scan
     private lazy var finder = AXWindowFinder(ids: ids)
 
-    init(ids: WindowIDProvider, spaces: SpaceProvider, options: @escaping () -> SpaceFilterOptions) {
-        self.ids = ids; self.spaces = spaces; self.options = options
+    init(ids: WindowIDProvider, spaces: SpaceProvider, options: @escaping () -> SpaceFilterOptions,
+         exclusions: @escaping () -> [AppExclusion] = { [] }) {
+        self.ids = ids; self.spaces = spaces; self.options = options; self.exclusions = exclusions
     }
 
     /// Start tracking which window is in front (so MRU order is right even for windows
@@ -92,12 +95,17 @@ final class WindowInventory {
     /// Windows in MRU order. By default only the current Space (what snapping features need, since
     /// Accessibility cannot move windows on other Spaces); the switcher passes `true` to include
     /// other desktops / full-screen apps according to the user's settings.
-    func snapshot(includeOtherSpaces: Bool = false) -> [WindowInfo] {
+    /// `scope`: which exclusion list applies (apps the user told us to leave alone). nil = no filtering (diagnostics).
+    func snapshot(includeOtherSpaces: Bool = false, for scope: ExclusionScope?) -> [WindowInfo] {
         let o = options()
         let raw = rawWindows(includeOtherSpaces: includeOtherSpaces && o.needsFullWindowList, filter: o)
         let order = mru.ordered(live: raw.map(\.id))
         let byID = Dictionary(raw.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
-        let result = order.compactMap { byID[$0] }
+        var result = order.compactMap { byID[$0] }
+        if let scope {
+            let list = exclusions()
+            if !list.isEmpty { result.removeAll { AppExclusions.isExcluded(bundleID: $0.bundleID, for: scope, in: list) } }
+        }
         var pids = Set<pid_t>()
         if result.contains(where: { $0.title == $0.appName }) { pids.formUnion(result.map(\.pid)) }
         pids.formUnion(axRefreshPIDs); axRefreshPIDs.removeAll()
@@ -154,7 +162,7 @@ final class WindowInventory {
                                                      isOrderedIn: spaces.isOrderedIn(window: num))
                 guard SpaceClassifier.isIncluded(placement, options: filter) else { continue }
                 let candidate = WindowInfo(id: num, pid: pid, appName: appName, title: title.isEmpty ? appName : title,
-                                           frame: frame, icon: app.icon, placement: placement, spaceLabel: nil)
+                                           frame: frame, icon: app.icon, placement: placement, spaceLabel: nil, bundleID: app.bundleIdentifier)
                 if placement == .orderedOutElsewhere {
                     // On another desktop and not showing: usually a window the app "closed" to the background
                     // (Claude, Slack...), which must not be listed. A genuinely minimized / hidden window is
@@ -175,7 +183,7 @@ final class WindowInventory {
                 }
             }
             out.append(WindowInfo(id: num, pid: pid, appName: appName, title: title.isEmpty ? appName : title,
-                                  frame: frame, icon: app.icon, placement: placement, spaceLabel: label))
+                                  frame: frame, icon: app.icon, placement: placement, spaceLabel: label, bundleID: app.bundleIdentifier))
         }
         return out
     }

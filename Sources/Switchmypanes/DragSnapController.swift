@@ -72,6 +72,8 @@ final class DragSnapController {
             guard let pid = (w[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value, pid != me,
                   let id = (w[kCGWindowNumber as String] as? NSNumber)?.uint32Value,
                   p.y - frame.minY <= titleBarHeight else { return }
+            if AppExclusions.isExcluded(bundleID: NSRunningApplication(processIdentifier: pid)?.bundleIdentifier,
+                                        for: .snapping, in: settings.appExclusions) { return }
             tracked = Tracked(id: id, pid: pid, startFrame: frame, title: (w[kCGWindowName as String] as? String) ?? "")
             return
         }

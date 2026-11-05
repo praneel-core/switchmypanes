@@ -83,7 +83,7 @@ final class SnapAssistController {
     private func show(freeFrame: CGRect, display: DisplayInfo, pid: pid_t, windowID: CGWindowID?, snappedFrame: CGRect) {
         pending = nil
         // Everything except the window we just snapped.
-        let list = inventory.snapshot().filter { w in
+        let list = inventory.snapshot(for: .snapping).filter { w in
             if let windowID, w.id == windowID { return false }
             return !(w.pid == pid && abs(w.frame.minX - snappedFrame.minX) < 8 && abs(w.frame.minY - snappedFrame.minY) < 8
                      && abs(w.frame.width - snappedFrame.width) < 8)

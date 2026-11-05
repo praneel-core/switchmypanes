@@ -28,6 +28,8 @@ final class SettingsStore: ObservableObject {
     @Published var dragSnapEnabled: Bool { didSet { d.set(dragSnapEnabled, forKey: "dragSnapEnabled") } }
     /// Modifier combination for snapping (Control+Option by default). Stored as the raw bit set.
     @Published var snapModifiers: ShortcutModifiers { didSet { d.set(snapModifiers.rawValue, forKey: "snapModifiers") } }
+    /// Apps to leave alone: hidden from the switcher and/or never moved by snapping (per app).
+    @Published var appExclusions: [AppExclusion] { didSet { d.set(AppExclusions.encode(appExclusions), forKey: "appExclusions") } }
     /// Modifier(s) held for the window switcher (then Tab). Option by default.
     @Published var switcherModifier: ShortcutModifiers { didSet { d.set(switcherModifier.rawValue, forKey: "switcherModifier") } }
     /// Snap Layouts shortcut: modifiers + one key (Option+Z by default). `layoutsKeyLabel` is what to show for the key.
@@ -59,6 +61,7 @@ final class SettingsStore: ObservableObject {
         previewExcludedApps = d.stringArray(forKey: "previewExcludedApps") ?? PreviewPolicy.defaultExcludedApps
         snapModifiers = ShortcutModifiers(rawValue: d.integer(forKey: "snapModifiers"))
         gap = d.double(forKey: "gap")
+        appExclusions = AppExclusions.decode(d.data(forKey: "appExclusions"))
         switcherModifier = ShortcutModifiers(rawValue: d.integer(forKey: "switcherModifier"))
         layoutsModifier = ShortcutModifiers(rawValue: d.integer(forKey: "layoutsModifier"))
         layoutsKeyCode = d.integer(forKey: "layoutsKeyCode")
@@ -77,7 +80,7 @@ final class SettingsStore: ObservableObject {
     }
 
     func resetToDefaults() {
-        switcherEnabled = true; snapEnabled = true; dragSnapEnabled = true; layoutsEnabled = true; snapAssistEnabled = true; includeOtherDesktops = true; includeFullScreen = true; includeMinimized = true; keepPreviewsFresh = true; previewExcludedApps = PreviewPolicy.defaultExcludedApps; gap = 0
+        switcherEnabled = true; snapEnabled = true; dragSnapEnabled = true; layoutsEnabled = true; snapAssistEnabled = true; includeOtherDesktops = true; includeFullScreen = true; includeMinimized = true; keepPreviewsFresh = true; appExclusions = []; previewExcludedApps = PreviewPolicy.defaultExcludedApps; gap = 0
         resetShortcuts()
     }
 

@@ -34,7 +34,7 @@ final class SwitcherController {
     func begin(reverse: Bool) {
         guard !isActive else { return }
         inventory.noteFrontmost()
-        var list = inventory.snapshot(includeOtherSpaces: true)
+        var list = inventory.snapshot(includeOtherSpaces: true, for: .switcher)
         guard !list.isEmpty else { return }
 
         let screen = DisplayProvider.screenUnderMouse()
@@ -45,6 +45,9 @@ final class SwitcherController {
         panelVisible = false
         columns = layout.columns
         selection = SwitcherSelection(count: list.count, reverse: reverse)
+        // Normally entry 0 is the window you are in and the quick tap goes to entry 1. If you are in an app that is
+        // excluded (or has no window), nothing listed is "where you are", so start on the first entry instead.
+        if !reverse, list.first?.pid != NSWorkspace.shared.frontmostApplication?.processIdentifier { selection.select(0) }
         isActive = true
         startedAt = Date()
         startWatchdog()
@@ -103,7 +106,7 @@ final class SwitcherController {
 
     private func removeIfGone(_ id: CGWindowID) {
         guard isActive, let i = windows.firstIndex(where: { $0.id == id }) else { return }
-        guard !inventory.snapshot(includeOtherSpaces: true).contains(where: { $0.id == id }) else { return }
+        guard !inventory.snapshot(includeOtherSpaces: true, for: .switcher).contains(where: { $0.id == id }) else { return }
         windows.remove(at: i)
         selection.didRemove(at: i, newCount: windows.count)
         if windows.isEmpty { end(); return }          // nothing left to switch to
