@@ -111,6 +111,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, KeyboardMonitorDelegat
         case .switcherPrevious: switcher.previous()
         case .switcherMove(let key): switcher.move(key)
         case .switcherCancel: switcher.cancel()
+        case .switcherClose: switcher.closeSelected()
         case .switcherCommit: switcher.commit()
         case .snap(let key, let moveToDisplay):
             // Run after the tap callback returns, so a slow app can never make macOS disable our tap.

@@ -11,6 +11,9 @@ Free, local only: no accounts, no network calls, no analytics. Phase 1 of 3: see
   Cmd+Tab is untouched.
 - **Drag to snap**: drag a window by its title bar to the left or right edge (half), top edge (maximize) or a corner
   (quarter). A translucent preview shows where it will land; release to snap. Edges shared with another display are ignored.
+- **Close windows from the overlay**: hover a tile and click the red ✕, or highlight a window and press **Delete** or
+  **W**. It closes exactly as if you had clicked its close button, so "Save changes?" prompts still appear (the tile
+  stays until the window is really gone). Not offered for windows on other desktops.
 - **Other desktops and full-screen apps**: the overlay also lists windows on other desktops (Spaces) and full-screen
   apps, each with a small "Desktop 2" / "Full screen" tag. Choosing one makes macOS switch to that desktop.
   Both can be turned off in Preferences. Thumbnails for these show the last picture taken while the window was
@@ -87,4 +90,5 @@ No automated tests can click macOS permission dialogs; see the manual test check
 13. Option+Z: pick "Three columns" (press 3): the first area is outlined, windows are listed with the front one selected. Place three windows with Return; each should move and come to the front. Try Space to skip, Esc halfway, and clicking outside the picker (it should close). Set a gap in Preferences and re-run: gaps should be even.
 14. Snap Assist: snap a window Left (Control+Option+Left): after a moment, other windows appear over the right half with the first selected. Return fills it. Try: click a tile; Esc; clicking elsewhere; pressing Control+Option+Up right after the snap (it should close Assist AND make the top-left quarter, with no flash if you press quickly). Repeat with a drag to the right edge.
 15. Spaces: create a second desktop (Mission Control, +) and put a window there; make an app full screen (green button). Go back to your first desktop and press Option+Tab: those windows appear, tagged "Desktop 2" / "Full screen". Select one and release Option: macOS should switch to its desktop and that window should be in front. Test both with the app having ONLY that one window, and with the app also having a window on your current desktop (the harder case). Then turn the two options off in Preferences and check they disappear.
-16. Menu bar: Pause stops all shortcuts; Resume restores; Quit removes the icon.
+16. Closing: open the overlay with 3+ windows (use throwaway windows, e.g. new Finder windows). Hover a tile: a red ✕ appears; click it: the window closes and the overlay re-flows. Press Option+Tab, Tab to a window, press Delete (then W): same. Try a TextEdit document with unsaved text: the save sheet appears and the tile stays. Close every window: the overlay should disappear on its own. Tiles for other desktops should show no ✕ and beep on Delete.
+17. Menu bar: Pause stops all shortcuts; Resume restores; Quit removes the icon.

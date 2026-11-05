@@ -329,5 +329,23 @@ do {
     check(!SpaceClassifier.isIncluded(.hiddenOrMinimized, options: all) && !SpaceClassifier.isIncluded(.noSpace, options: all), "junk and minimized excluded")
 }
 
+section("Closing windows from the overlay")
+do {
+    var s = SwitcherSelection(count: 5); s.select(2)
+    s.didRemove(at: 4, newCount: 4); eq(s.index, 2, "closing a later window keeps the highlight")
+    s.didRemove(at: 0, newCount: 3); eq(s.index, 1, "closing an earlier window follows the same window")
+    s.didRemove(at: 1, newCount: 2); eq(s.index, 1, "closing the highlighted window selects the next one")
+    s.didRemove(at: 1, newCount: 1); eq(s.index, 0, "closing the last-listed highlighted window selects the one before")
+    s.didRemove(at: 0, newCount: 0); eq(s.index, 0, "empty"); eq(s.count, 0, "count follows")
+    var t = SwitcherSelection(count: 3); t.didRemove(at: 2, newCount: 2); eq(t.count, 2, "count shrinks"); t.next(); t.next(); eq(t.index, 1, "cycling uses the new count")
+    let cfg = ShortcutConfig()
+    func kd(_ code: Int64, _ f: ShortcutModifiers = .option, active: Bool = true) -> KeyAction {
+        KeyClassifier.classifyKeyDown(keyCode: code, flags: f, isRepeat: false, switcherActive: active, config: cfg)
+    }
+    eq(kd(51), .switcherClose, "Delete closes"); eq(kd(13), .switcherClose, "W closes"); eq(kd(117), .switcherClose, "forward Delete closes")
+    eq(kd(13, [], active: false), .passThrough, "W outside the switcher is untouched")
+    eq(kd(13, .option, active: false), .passThrough, "Option+W outside the switcher is untouched")
+}
+
 print("\n\(total - failures)/\(total) checks passed")
 exit(failures == 0 ? 0 : 1)

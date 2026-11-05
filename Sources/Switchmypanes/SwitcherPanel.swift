@@ -34,6 +34,11 @@ struct SwitcherLayout {
     }
 }
 
+/// A button that works on the first click even though the overlay never becomes the active window.
+final class FirstClickButton: NSButton {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+}
+
 /// One window in the overlay: thumbnail (or app icon), app icon badge, title.
 final class WindowTileView: NSView {
     let index: Int
@@ -41,16 +46,19 @@ final class WindowTileView: NSView {
     private let thumb = NSImageView()
     private let badge = NSImageView()
     private let label: NSTextField
+    private let closeButton = FirstClickButton()
+    private let canClose: Bool
     private let pill = NSTextField(labelWithString: "")     // "Desktop 2" / "Full screen"
     private let icon: NSImage?
     private var hasThumbnail = false
     var onClick: ((Int) -> Void)?
     var onHover: ((Int) -> Void)?
+    var onClose: ((Int) -> Void)?
 
     var isSelected = false { didSet { refreshAppearance() } }
 
     init(frame: NSRect, index: Int, info: WindowInfo, thumbnail: NSImage?) {
-        self.index = index; self.windowID = info.id; self.icon = info.icon
+        self.index = index; self.windowID = info.id; self.icon = info.icon; self.canClose = info.isOnCurrentSpace
         label = NSTextField(labelWithString: info.title)
         super.init(frame: frame)
         wantsLayer = true
@@ -69,6 +77,17 @@ final class WindowTileView: NSView {
         label.textColor = .labelColor
         label.toolTip = "\(info.appName) — \(info.title)"
         addSubview(thumb); addSubview(badge); addSubview(label)
+        // Close button: appears while the mouse is over the tile (not offered for windows on other desktops).
+        closeButton.isBordered = false
+        closeButton.imagePosition = .imageOnly
+        closeButton.image = NSImage(systemSymbolName: "xmark.circle.fill", accessibilityDescription: "Close window")?
+            .withSymbolConfiguration(.init(paletteColors: [.white, .systemRed]))
+        closeButton.imageScaling = .scaleProportionallyUpOrDown
+        closeButton.toolTip = "Close this window"
+        closeButton.target = self
+        closeButton.action = #selector(closeTapped)
+        closeButton.isHidden = true
+        addSubview(closeButton)
         if let space = info.spaceLabel {
             pill.stringValue = " \(space) "
             pill.font = .systemFont(ofSize: 10, weight: .semibold)
@@ -96,6 +115,7 @@ final class WindowTileView: NSView {
         let footer = iconSize + 6
         thumb.frame = NSRect(x: pad, y: footer + pad, width: bounds.width - 2 * pad, height: bounds.height - footer - 2 * pad)
         badge.frame = NSRect(x: pad, y: pad - 2, width: iconSize, height: iconSize)
+        closeButton.frame = NSRect(x: thumb.frame.minX + 4, y: thumb.frame.maxY - 26, width: 22, height: 22)
         if !pill.stringValue.isEmpty {
             pill.frame.origin = NSPoint(x: bounds.maxX - pad - pill.frame.width - 4, y: bounds.maxY - pad - pill.frame.height - 4)
         }
@@ -116,8 +136,10 @@ final class WindowTileView: NSView {
 
     override func mouseDown(with event: NSEvent) { onClick?(index) }
     override func mouseMoved(with event: NSEvent) { onHover?(index) }
-    override func mouseEntered(with event: NSEvent) { onHover?(index) }
+    override func mouseEntered(with event: NSEvent) { onHover?(index); closeButton.isHidden = !canClose }
+    override func mouseExited(with event: NSEvent) { closeButton.isHidden = true }
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+    @objc private func closeTapped() { onClose?(index) }
 }
 
 /// The overlay window. A non-activating panel: it can be clicked, but never takes keyboard focus
@@ -132,6 +154,7 @@ final class SwitcherPanel: NSPanel {
     private var initialMouse = NSPoint.zero
     var onClick: ((Int) -> Void)?
     var onHover: ((Int) -> Void)?
+    var onClose: ((Int) -> Void)?
 
     init() {
         super.init(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: true)
@@ -173,6 +196,7 @@ final class SwitcherPanel: NSPanel {
                                  y: size.height - pad - header - tile.height - CGFloat(row) * (tile.height + sp))
             let v = WindowTileView(frame: NSRect(origin: origin, size: tile), index: i, info: w, thumbnail: thumbnail(w.id))
             v.onClick = { [weak self] in self?.onClick?($0) }
+            v.onClose = { [weak self] in self?.onClose?($0) }
             v.onHover = { [weak self] idx in self?.hoverIfMouseMoved(idx) }
             v.isSelected = (i == selected)
             background.addSubview(v)

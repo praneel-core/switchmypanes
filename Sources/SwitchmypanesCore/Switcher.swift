@@ -40,7 +40,7 @@ public struct MRUList<ID: Hashable> {
 
 /// Selection state of the Alt-Tab overlay.
 public struct SwitcherSelection: Equatable {
-    public let count: Int
+    public private(set) var count: Int
     public private(set) var index: Int
 
     /// Forward: the SECOND window (index 1) is selected first, so a quick tap toggles between the
@@ -52,6 +52,14 @@ public struct SwitcherSelection: Equatable {
 
     public mutating func next()     { if count > 0 { index = (index + 1) % count } }
     public mutating func previous() { if count > 0 { index = (index - 1 + count) % count } }
+    /// A window was closed while the overlay is open. Keep the highlight on the same window where possible.
+    public mutating func didRemove(at removed: Int, newCount: Int) {
+        count = max(0, newCount)
+        if count == 0 { index = 0; return }
+        if removed < index { index -= 1 }
+        index = min(max(index, 0), count - 1)       // if the selected window itself was closed, the next one is selected
+    }
+
     public mutating func select(_ i: Int) { if i >= 0 && i < count { index = i } }
 
     /// Arrow keys on a grid with `columns` columns. Left/right wrap like Tab; up/down stay put at the edges.

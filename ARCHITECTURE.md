@@ -110,7 +110,8 @@ Accessibility API is top-left; all logic uses top-left and converts once, in `Di
 - DONE: drag-to-edge (`DragSnapController`, `ZonePreviewOverlay`) and Snap Layouts (`LayoutPickerController`; modal keys are classified in `KeyClassifier` with a `pickerActive` flag; safety nets: outside click, 3-minute timeout, tap-disabled, pause and quit all cancel it).
 - DONE: Snap Assist (`SnapAssistController`): `SnapController.onSnapped` -> 0.25 s delay -> `SwitcherPanel` centred on the empty half; `KeyClassifier` assist mode (`pickerDismiss` closes it and re-classifies the same key). Halves only; quarters are a possible follow-up.
 - DONE: other desktops + full-screen apps in the switcher (`SpaceClassifier` in Core decides what to include; `CGSSpaceProvider` supplies the data; `WindowActivator` asks the app to come forward, then retries the exact raise while the Space switch settles). Snap Layouts / Assist deliberately stay on the current Space: Accessibility cannot move windows on other Spaces.
-- Switcher still to do: close-window X / Delete key (AX close button), minimized + hidden windows (the `hiddenOrMinimized` placement already exists), all-screens / current-screen option, live thumbnails.
+- DONE: close from the overlay (hover ✕, Delete / W): `KeyAction.switcherClose`, `WindowActivator.close` presses the AX close button, `SwitcherController.removeIfGone` re-checks after 0.25 s and 0.7 s so "Save changes?" windows keep their tile.
+- Switcher still to do: minimized + hidden windows (the `hiddenOrMinimized` placement already exists), all-screens / current-screen option, live thumbnails.
 - Preferences: shortcut recorder, launch at login (`SMAppService.mainApp`).
 
 ## Phase 3 plan

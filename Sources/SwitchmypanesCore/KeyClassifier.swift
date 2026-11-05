@@ -33,6 +33,7 @@ public enum KeyAction: Equatable {
     case switcherNext, switcherPrevious
     case switcherMove(ArrowKey)
     case switcherCancel
+    case switcherClose                     // close the highlighted window (Delete or W)
     case switcherCommit                    // modifier released
     case snap(ArrowKey, moveToDisplay: Bool)
     // Snap Layouts picker
@@ -46,7 +47,7 @@ public enum KeyAction: Equatable {
 /// Decides what a key press means. The event tap only ever acts on what this returns,
 /// so "which keys do we swallow" is defined in exactly one, testable, place.
 public enum KeyClassifier {
-    public static let tab: Int64 = 48, escape: Int64 = 53, z: Int64 = 6, space: Int64 = 49, returnKey: Int64 = 36, enter: Int64 = 76
+    public static let w: Int64 = 13, delete: Int64 = 51, forwardDelete: Int64 = 117, tab: Int64 = 48, escape: Int64 = 53, z: Int64 = 6, space: Int64 = 49, returnKey: Int64 = 36, enter: Int64 = 76
     public static let left: Int64 = 123, right: Int64 = 124, down: Int64 = 125, up: Int64 = 126
 
     public static func arrow(for keyCode: Int64) -> ArrowKey? {
@@ -102,6 +103,7 @@ public enum KeyClassifier {
             switch keyCode {
             case tab: return flags.contains(.shift) ? .switcherPrevious : .switcherNext
             case escape: return .switcherCancel
+            case delete, forwardDelete, w: return .switcherClose
             default:
                 if let a = arrow(for: keyCode) { return .switcherMove(a) }
                 return .passThrough

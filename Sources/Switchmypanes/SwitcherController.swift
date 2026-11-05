@@ -13,6 +13,8 @@ final class SwitcherController {
     private var windows: [WindowInfo] = []
     private var selection = SwitcherSelection(count: 0)
     private var columns = 1
+    private var screen: NSScreen?
+    private var panelVisible = false
     private var showWork: DispatchWorkItem?
     private var watchdog: Timer?
     private var startedAt = Date()
@@ -24,6 +26,7 @@ final class SwitcherController {
         self.inventory = inventory; self.thumbnails = thumbnails; self.activator = activator
         panel.onClick = { [weak self] index in self?.clicked(index) }
         panel.onHover = { [weak self] index in self?.hovered(index) }
+        panel.onClose = { [weak self] index in self?.close(at: index) }
     }
 
     func begin(reverse: Bool) {
@@ -36,13 +39,15 @@ final class SwitcherController {
         let layout = SwitcherLayout.plan(count: list.count, screen: screen)
         if list.count > layout.capacity { list = Array(list.prefix(layout.capacity)) }   // only on huge window counts
         windows = list
+        self.screen = screen
+        panelVisible = false
         columns = layout.columns
         selection = SwitcherSelection(count: list.count, reverse: reverse)
         isActive = true
         startedAt = Date()
         startWatchdog()
 
-        let work = DispatchWorkItem { [weak self] in self?.showPanel(layout: layout, screen: screen) }
+        let work = DispatchWorkItem { [weak self] in self?.showPanel() }
         showWork = work
         DispatchQueue.main.asyncAfter(deadline: .now() + showDelay, execute: work)
     }
@@ -64,15 +69,43 @@ final class SwitcherController {
 
     // MARK: private
 
-    private func showPanel(layout: SwitcherLayout, screen: NSScreen) {
-        guard isActive else { return }
+    /// Draws the overlay for the current list of windows (called when it first appears, and again after a window is closed).
+    private func showPanel() {
+        guard isActive, let screen else { return }
+        let layout = SwitcherLayout.plan(count: windows.count, screen: screen)
+        columns = layout.columns
         panel.present(windows: windows, layout: layout, selected: selection.index, on: screen,
                       thumbnail: { [thumbnails] in thumbnails.cached($0) })
+        guard !panelVisible else { return }       // thumbnails are only (re)captured when the overlay first appears
+        panelVisible = true
         // Windows on other Spaces cannot be captured; they show their last cached picture, or the app icon.
         thumbnails.refresh(windowIDs: windows.filter(\.isOnCurrentSpace).map(\.id)) { [weak self] id, image in
             guard let self, self.isActive else { return }
             self.panel.setThumbnail(image, for: id)
         }
+    }
+
+    // MARK: closing windows from the overlay
+
+    func closeSelected() { guard isActive else { return }; close(at: selection.index) }
+
+    func close(at index: Int) {
+        guard isActive, index >= 0, index < windows.count else { return }
+        let target = windows[index]
+        guard activator.close(target) else { NSSound.beep(); return }   // other desktop, or no close button
+        // The app may ask "Save changes?" and keep the window, so only drop the tile once it is really gone.
+        for delay in [0.25, 0.7] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in self?.removeIfGone(target.id) }
+        }
+    }
+
+    private func removeIfGone(_ id: CGWindowID) {
+        guard isActive, let i = windows.firstIndex(where: { $0.id == id }) else { return }
+        guard !inventory.snapshot(includeOtherSpaces: true).contains(where: { $0.id == id }) else { return }
+        windows.remove(at: i)
+        selection.didRemove(at: i, newCount: windows.count)
+        if windows.isEmpty { end(); return }          // nothing left to switch to
+        if panelVisible { showPanel() }
     }
 
     private func updateSelection() { panel.setSelected(selection.index) }

@@ -60,4 +60,15 @@ final class WindowActivator {
         AXUIElementSetAttributeValue(appEl, kAXFocusedWindowAttribute as CFString, window)
         NSRunningApplication(processIdentifier: pid)?.activate()   // belt and braces: the normal AppKit request as well
     }
+
+    /// Closes the window by pressing its close button through Accessibility (so apps behave exactly as if
+    /// you had clicked it: "Save changes?" sheets appear, unclosable windows stay). Returns false when the
+    /// window cannot be found or has no close button (for example windows on another desktop).
+    @discardableResult
+    func close(_ info: WindowInfo) -> Bool {
+        guard info.isOnCurrentSpace,
+              let window = finder.find(pid: info.pid, windowID: info.id, frame: info.frame, title: info.title),
+              let button = AX.element(window, kAXCloseButtonAttribute) else { return false }
+        return AXUIElementPerformAction(button, kAXPressAction as CFString) == .success
+    }
 }
