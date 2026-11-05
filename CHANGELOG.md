@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- New overlay look for the window switcher, Snap Assist and Snap Layouts: glass panels, a highlight that slides between tiles, a keyboard-hint bar, colour-coded tags, a centred last row, and a quick fade-in.
+- Snap animation: a glowing outline travels from where a window was to where it lands (keyboard, drag, Snap Assist, Snap Layouts); switchable in Preferences.
+- Preferences reorganised into five tabs.
+- Reduce motion is respected everywhere.
+- New diagnostics: `--render-overlay`, `--selftest-motion`.
+
 ## 0.1.0
 
 First release. Windows-style Alt-Tab and window snapping for macOS (14+, Apple Silicon), as a menu bar app.

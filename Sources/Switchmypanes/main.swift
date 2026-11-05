@@ -11,6 +11,8 @@ if CommandLine.arguments.contains("--help") || CommandLine.arguments.contains("-
                                 whether a preview could be captured), then exit. No side effects.
           --exclude=<bundle id> also apply a "hide from switcher" exclusion (repeatable), to test the rule.
       --render-overlay <folder> draw the overlays offscreen with sample windows into PNG files (no side effects).
+      --selftest-motion         play the snap animation once on screen (a glowing rectangle for about half a second)
+                                and check it disappears again. Prints PASS / FAIL.
       --selftest-linked         test linked resizing against helper processes (normal, stubborn and slow apps, and the
                                 hover behaviour). Opens nearly invisible helper windows in the bottom-right corner for
                                 about a minute. Prints PASS / FAIL.
@@ -32,6 +34,31 @@ if let i = CommandLine.arguments.firstIndex(of: "--render-overlay") {
     }
     print("rendered to \(folder)")
     exit(0)
+}
+
+// `Switchmypanes --selftest-motion`: plays the snap animation once and checks it appears, then disappears completely.
+if CommandLine.arguments.contains("--selftest-motion") {
+    var ok = false
+    MainActor.assumeIsolated {
+        let app = NSApplication.shared
+        app.setActivationPolicy(.accessory)
+        app.finishLaunching()
+        func spin(_ s: Double) { RunLoop.current.run(until: Date().addingTimeInterval(s)) }
+        guard let d = DisplayProvider.layout().displays.first else { print("no display"); return }
+        let v = d.visibleFrame
+        let motion = SnapMotion()
+        motion.play(from: CGRect(x: v.minX + 200, y: v.minY + 150, width: 500, height: 350),
+                    to: CGRect(x: v.minX, y: v.minY, width: v.width / 2, height: v.height))
+        spin(0.12)
+        let during = motion.debugIsVisible
+        spin(1.2)
+        let after = motion.debugIsVisible
+        print(OverlayTheme.motionEnabled ? "motion allowed" : "Reduce motion is ON: nothing should play")
+        print(during || !OverlayTheme.motionEnabled ? "PASS: the outline appears while snapping" : "FAIL: the outline never appeared")
+        print(!after ? "PASS: it is completely gone afterwards" : "FAIL: the outline is still on screen")
+        ok = (during || !OverlayTheme.motionEnabled) && !after
+    }
+    exit(ok ? 0 : 1)
 }
 
 // Diagnostic: `Switchmypanes --list-windows` prints the windows the switcher would show (with their

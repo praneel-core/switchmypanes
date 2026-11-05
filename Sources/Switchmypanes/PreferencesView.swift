@@ -152,6 +152,8 @@ struct PreferencesView: View {
                     Toggle("Keyboard snapping", isOn: $settings.snapEnabled)
                     Toggle("Snap Assist: after snapping to a half, offer other windows for the empty half", isOn: $settings.snapAssistEnabled)
                         .disabled(!settings.snapEnabled)
+                    Toggle("Animate snapping (a glowing outline travels to where the window lands)", isOn: $settings.snapAnimationsEnabled)
+                        .disabled(!settings.snapEnabled)
                     Toggle("Drag a window to a screen edge or corner to snap it", isOn: $settings.dragSnapEnabled)
                         .disabled(!settings.snapEnabled)
                     VStack(alignment: .leading) {

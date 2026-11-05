@@ -23,6 +23,7 @@ Sources/
     Geometry.swift                coordinate conversion (AppKit <-> top-left), DisplayInfo, DisplayLayout
     SnapEngine.swift              zone frames and detection, the Win+Arrow state machine, drag-to-edge zones, RestoreMemory
     SnapLayout.swift              the nine Snap Layouts presets with gap-aware zone frames
+    SnapMotion.swift              when the snap animation plays and how long (`SnapMotionPolicy`)
     LinkedResize.swift            shared-divider resizing, dividers, hover zones, MinSizeLearning
     Switcher.swift                MRUList, SwitcherSelection (the "second window first" rule)
     SpaceClassifier.swift         which windows belong in the switcher (current / other desktop / minimized / junk)
@@ -45,6 +46,9 @@ Sources/
     WindowActivator.swift         bring a window forward / close it, across desktops
     SnapController.swift, WindowMover.swift            keyboard snapping, applying frames to windows
     DragSnapController.swift, ZonePreviewOverlay.swift drag to an edge, with a preview
+    SnapMotion.swift              the snap animation: a glowing outline from the old frame to the new one (rules: Core `SnapMotionPolicy`)
+    OverlayTheme.swift            the shared overlay look: glass, keycap hint bar, tags, fade-in (and Reduce-motion handling)
+    OverlayPreview.swift          `--render-overlay`: draws the overlays and Preferences offscreen to PNG for checking the look
     SnapAssistController.swift    the empty half after a half-snap
     LayoutPickerController.swift, LayoutChoicePanel.swift   Snap Layouts
     LinkedGroupController.swift, DividerOverlay.swift  linked resizing and the draggable line
@@ -160,6 +164,13 @@ displaying. Pictures live in memory only (capped).
 
 ## Decisions
 
+- **Snap animation is a travelling outline, not a sliding window.** Stepping a real window's frame stutters, because apps apply
+  resizes late and drop half of an update (see linked resizing); a picture of the window sliding needs the real window hidden
+  meanwhile, which macOS does not allow cleanly, and would otherwise show two copies. A glowing outline that travels from the
+  old frame to the new one and pulses shows the motion with no such risk, needs no screen-capture permission, and cannot
+  disturb the window.
+- **Overlays keep most-recently-used order.** They do not group "this desktop" / "other desktops" into sections, because that
+  would reorder the list and break the quick-tap toggle; colour-coded tags carry that information instead.
 - **Cmd+Tab and Cmd+\` are never overridden.** Swallowing them and disabling the native shortcut needs private APIs that can
   leave the system shortcut disabled if the app crashes. The shortcut recorder refuses to assign them.
 - **No Option+\` per-app cycling.** Built, then dropped: macOS already cycles an app's windows with Cmd+\`, and Windows'

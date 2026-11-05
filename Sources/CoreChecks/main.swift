@@ -663,5 +663,19 @@ do {
     eq(r[1]!, stacked[1]!, "no shared vertical extent: not linked")
 }
 
+section("Snap motion")
+do {
+    let a = CGRect(x: 100, y: 100, width: 600, height: 400), b = CGRect(x: 0, y: 25, width: 720, height: 800)
+    check(SnapMotionPolicy.shouldAnimate(from: a, to: b, enabled: true, reduceMotion: false), "a real snap animates")
+    check(!SnapMotionPolicy.shouldAnimate(from: a, to: b, enabled: false, reduceMotion: false), "switched off")
+    check(!SnapMotionPolicy.shouldAnimate(from: a, to: b, enabled: true, reduceMotion: true), "Reduce motion: never")
+    check(!SnapMotionPolicy.shouldAnimate(from: a, to: a.offsetBy(dx: 3, dy: 2), enabled: true, reduceMotion: false), "a nudge of a few points does not")
+    check(SnapMotionPolicy.shouldAnimate(from: a, to: CGRect(x: 100, y: 100, width: 640, height: 400), enabled: true, reduceMotion: false), "a pure resize animates")
+    check(!SnapMotionPolicy.shouldAnimate(from: .zero, to: b, enabled: true, reduceMotion: false), "unknown start frame: no animation")
+    check(!SnapMotionPolicy.shouldAnimate(from: a, to: .zero, enabled: true, reduceMotion: false), "unknown end frame: no animation")
+    let short = SnapMotionPolicy.duration(from: a, to: a.offsetBy(dx: 20, dy: 0)), long = SnapMotionPolicy.duration(from: a, to: CGRect(x: 2000, y: 900, width: 700, height: 800))
+    check(short >= 0.16 && long <= 0.30, "durations stay between 0.16 s and 0.30 s"); check(long > short, "a longer trip takes longer")
+}
+
 print("\n\(total - failures)/\(total) checks passed")
 exit(failures == 0 ? 0 : 1)

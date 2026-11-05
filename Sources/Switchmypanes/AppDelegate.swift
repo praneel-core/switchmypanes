@@ -78,6 +78,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, KeyboardMonitorDelegat
         dragSnapper.stop()
         previewKeeper.stop()
         linked.removeAll()
+        snapper.motion.cancel()
         inventory.stopTracking()
     }
 
@@ -88,7 +89,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, KeyboardMonitorDelegat
     private func setPaused(_ paused: Bool) {
         settings.paused = paused
         monitor.isPaused = paused
-        if paused { switcher.cancel(); picker.cancel(); assist.cancel(); dragSnapper.reset(); linked.removeAll() }
+        if paused { switcher.cancel(); picker.cancel(); assist.cancel(); dragSnapper.reset(); linked.removeAll(); snapper.motion.cancel() }
     }
 
     private func showPreferences() {

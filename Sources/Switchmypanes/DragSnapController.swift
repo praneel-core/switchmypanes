@@ -108,9 +108,10 @@ final class DragSnapController {
         preview.hide()
         // Let the app finish its own drag handling first, then place the window.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [snapper, finder] in
-            guard let current = finder.find(pid: t.pid, windowID: t.id, frame: self.currentFrame(of: t.id) ?? t.startFrame, title: t.title)
+            let released = self.currentFrame(of: t.id)          // where the window is when you let go: the glow starts there
+            guard let current = finder.find(pid: t.pid, windowID: t.id, frame: released ?? t.startFrame, title: t.title)
             else { return }
-            snapper.snapDragged(window: current, pid: t.pid, to: pending.zone, on: pending.display, preDragFrame: t.startFrame)
+            snapper.snapDragged(window: current, pid: t.pid, to: pending.zone, on: pending.display, preDragFrame: t.startFrame, releasedAt: released)
         }
     }
 

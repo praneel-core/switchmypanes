@@ -10,6 +10,7 @@ final class SnapController {
     private let settings: SettingsStore
     private let ids: WindowIDProvider
     private var restore = RestoreMemory<WindowKey>()
+    let motion = SnapMotion()
 
     /// Called just before we move a window ourselves (so a linked group can let go of it).
     var onWillMoveWindow: (pid_t, CGWindowID?) -> Void = { _, _ in }
@@ -18,7 +19,10 @@ final class SnapController {
     /// Called after a window was snapped to a zone: (zone, display, pid, window id if known, the frame it was given, the window).
     var onSnapped: (SnapZone, DisplayInfo, pid_t, CGWindowID?, CGRect, AXUIElement) -> Void = { _, _, _, _, _, _ in }
 
-    init(settings: SettingsStore, ids: WindowIDProvider) { self.settings = settings; self.ids = ids }
+    init(settings: SettingsStore, ids: WindowIDProvider) {
+        self.settings = settings; self.ids = ids
+        motion.isEnabled = { [settings] in settings.snapAnimationsEnabled }
+    }
 
     func handle(_ key: ArrowKey, moveToDisplay: Bool) {
         onBeforeSnap()
@@ -51,11 +55,13 @@ final class SnapController {
             restore.willSnap(k, currentFrame: frame, wasSnapped: state != nil)
             let target = SnapEngine.frame(for: zone, in: display.visibleFrame, gap: gap)
             WindowMover.apply(target, to: window, bounds: display.visibleFrame)
+            motion.play(from: frame, to: target)
             onSnapped(zone, display, app.processIdentifier, ids.windowID(of: window), target, window)
         case .restore:
             let target = restore.take(k) ?? SnapEngine.defaultRestoreFrame(in: display.visibleFrame)
             let bounds = layout.display(containing: target)?.visibleFrame ?? display.visibleFrame
             WindowMover.apply(target, to: window, bounds: bounds)
+            motion.play(from: frame, to: target)
         case .minimize:
             AXUIElementSetAttributeValue(window, kAXMinimizedAttribute as CFString, kCFBooleanTrue)
         case .moveToDisplay(let dir, let zone):
@@ -63,23 +69,25 @@ final class SnapController {
             let newFrame = SnapEngine.frameOnDisplay(zone: zone, window: frame, from: display.visibleFrame,
                                                      to: target.visibleFrame, gap: gap)
             WindowMover.apply(newFrame, to: window, bounds: target.visibleFrame)
+            motion.play(from: frame, to: newFrame)
         }
     }
 
     /// Put a window into a frame chosen by a picker or a drag, remembering where it was BEFORE
     /// so that "Down" (restore) puts it back there.
-    func place(window: AXUIElement, pid: pid_t, target: CGRect, on display: DisplayInfo, preFrame: CGRect) {
+    func place(window: AXUIElement, pid: pid_t, target: CGRect, on display: DisplayInfo, preFrame: CGRect, animateFrom: CGRect? = nil) {
         onWillMoveWindow(pid, ids.windowID(of: window))
         let wid = ids.windowID(of: window).map { Int($0) } ?? Int(truncatingIfNeeded: CFHash(window))
         restore.willSnap(WindowKey(pid: pid, id: wid), currentFrame: preFrame, wasSnapped: false)
         WindowMover.apply(target, to: window, bounds: display.visibleFrame)
+        motion.play(from: animateFrom ?? preFrame, to: target)
     }
 
     /// Called when a window was dragged to an edge.
-    func snapDragged(window: AXUIElement, pid: pid_t, to zone: SnapZone, on display: DisplayInfo, preDragFrame: CGRect) {
+    func snapDragged(window: AXUIElement, pid: pid_t, to zone: SnapZone, on display: DisplayInfo, preDragFrame: CGRect, releasedAt: CGRect? = nil) {
         onBeforeSnap()
         let target = SnapEngine.frame(for: zone, in: display.visibleFrame, gap: CGFloat(settings.gap))
-        place(window: window, pid: pid, target: target, on: display, preFrame: preDragFrame)
+        place(window: window, pid: pid, target: target, on: display, preFrame: preDragFrame, animateFrom: releasedAt)
         onSnapped(zone, display, pid, ids.windowID(of: window), target, window)
     }
 }
