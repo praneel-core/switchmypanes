@@ -6,7 +6,8 @@ import SwitchmypanesCore
 final class AppDelegate: NSObject, NSApplicationDelegate, KeyboardMonitorDelegate {
     private let settings = SettingsStore.shared
     private let ids = PrivateAXWindowIDProvider()
-    private lazy var inventory = WindowInventory(ids: ids)
+    private lazy var inventory = WindowInventory(ids: ids, spaces: makeSpaceProvider(),
+                                                 options: { [settings] in settings.spaceFilter })
     private let thumbnails = ThumbnailService()
     private lazy var activator = WindowActivator(ids: ids)
     private lazy var switcher = SwitcherController(inventory: inventory, thumbnails: thumbnails, activator: activator)

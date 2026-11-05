@@ -41,6 +41,7 @@ final class WindowTileView: NSView {
     private let thumb = NSImageView()
     private let badge = NSImageView()
     private let label: NSTextField
+    private let pill = NSTextField(labelWithString: "")     // "Desktop 2" / "Full screen"
     private let icon: NSImage?
     private var hasThumbnail = false
     var onClick: ((Int) -> Void)?
@@ -68,6 +69,19 @@ final class WindowTileView: NSView {
         label.textColor = .labelColor
         label.toolTip = "\(info.appName) — \(info.title)"
         addSubview(thumb); addSubview(badge); addSubview(label)
+        if let space = info.spaceLabel {
+            pill.stringValue = " \(space) "
+            pill.font = .systemFont(ofSize: 10, weight: .semibold)
+            pill.textColor = .white
+            pill.drawsBackground = true
+            pill.backgroundColor = NSColor.black.withAlphaComponent(0.65)
+            pill.wantsLayer = true
+            pill.layer?.cornerRadius = 4
+            pill.layer?.masksToBounds = true
+            pill.sizeToFit()
+            addSubview(pill)
+            label.toolTip = "\(info.appName) — \(info.title) (\(space))"
+        }
         if let thumbnail { setThumbnail(thumbnail) } else { thumb.image = icon; thumb.alphaValue = 0.85 }
         addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .mouseMoved, .activeAlways, .inVisibleRect],
                                        owner: self, userInfo: nil))
@@ -82,6 +96,9 @@ final class WindowTileView: NSView {
         let footer = iconSize + 6
         thumb.frame = NSRect(x: pad, y: footer + pad, width: bounds.width - 2 * pad, height: bounds.height - footer - 2 * pad)
         badge.frame = NSRect(x: pad, y: pad - 2, width: iconSize, height: iconSize)
+        if !pill.stringValue.isEmpty {
+            pill.frame.origin = NSPoint(x: bounds.maxX - pad - pill.frame.width - 4, y: bounds.maxY - pad - pill.frame.height - 4)
+        }
         label.frame = NSRect(x: pad + iconSize + 6, y: pad - 2 + (iconSize - 16) / 2, width: bounds.width - 2 * pad - iconSize - 6, height: 16)
     }
 

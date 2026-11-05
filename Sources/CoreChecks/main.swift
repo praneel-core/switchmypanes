@@ -178,7 +178,13 @@ do {
     let tap2 = toggle.ordered(live: [20, 10])[SwitcherSelection(count: 2).index]
     eq(tap1, 20, "first tap goes to the previous window"); eq(tap2, 10, "second tap comes back")
     var capped = MRUList<Int>(cap: 3); capped.reconcile(live: [1, 2, 3, 4, 5]); capped.reconcile(live: [5])
-    check(capped.order.count <= 3, "dead entries are capped")
+    check(capped.order.count <= 3, "dead entries are capped"); check(capped.order.contains(5), "live entries survive the cap")
+    // Windows on another Space keep their place while they are not live.
+    var spaces = MRUList<Int>(); spaces.reconcile(live: [30, 20, 10]); spaces.touch(10)   // order: 10, 30, 20
+    spaces.reconcile(live: [20])                                                          // only 20 is on this Space
+    eq(spaces.order, [10, 30, 20], "off-Space windows are not pushed to the back")
+    eq(spaces.ordered(live: [30, 20, 10]), [10, 30, 20], "and are still in recency order when they come back")
+    spaces.reconcile(live: [99, 20]); eq(spaces.order.first, 99, "a brand-new window goes to the front")
 }
 
 section("Switcher selection")
@@ -297,6 +303,30 @@ do {
     eq(a(0), .pickerDismiss, "typing closes Assist and still types")
     eq(a(12, .command), .passThrough, "Cmd+Q untouched")
     eq(a(18), .pickerDismiss, "digits do not pick in Assist")
+}
+
+section("Space classification")
+do {
+    let kinds: [Int: SpaceKind] = [1: .desktop, 2: .desktop, 3: .fullScreen]
+    func c(_ on: Bool, _ spaces: [Int], active: Set<Int> = [1]) -> WindowPlacement {
+        SpaceClassifier.classify(isOnScreen: on, windowSpaces: spaces, activeSpaces: active, kinds: kinds)
+    }
+    eq(c(true, [1]), .currentSpace, "drawn = current Space")
+    eq(c(false, [2]), .otherSpace(.desktop), "other desktop")
+    eq(c(false, [3]), .otherSpace(.fullScreen), "full-screen app")
+    eq(c(false, []), .noSpace, "junk window with no Space")
+    eq(c(false, [1]), .hiddenOrMinimized, "not drawn but on the visible Space: minimized or hidden")
+    eq(c(false, [3], active: [3]), .hiddenOrMinimized, "same, while you are inside a full-screen Space")
+    eq(c(false, [1], active: [3]), .otherSpace(.desktop), "inside a full-screen Space, the desktop's windows are 'other'")
+    eq(c(false, [2], active: [1, 2]), .hiddenOrMinimized, "two displays: each display's current Space counts")
+    eq(c(false, [9]), .otherSpace(.other), "unknown Space kind")
+    let all = SpaceFilterOptions(), none = SpaceFilterOptions(includeOtherDesktops: false, includeFullScreen: false)
+    check(SpaceClassifier.isIncluded(.currentSpace, options: none), "current Space always included")
+    check(SpaceClassifier.isIncluded(.otherSpace(.desktop), options: all), "other desktops on")
+    check(!SpaceClassifier.isIncluded(.otherSpace(.desktop), options: none), "other desktops off")
+    check(SpaceClassifier.isIncluded(.otherSpace(.fullScreen), options: SpaceFilterOptions(includeOtherDesktops: false)), "full-screen independent of desktops")
+    check(!SpaceClassifier.isIncluded(.otherSpace(.fullScreen), options: SpaceFilterOptions(includeFullScreen: false)), "full-screen off")
+    check(!SpaceClassifier.isIncluded(.hiddenOrMinimized, options: all) && !SpaceClassifier.isIncluded(.noSpace, options: all), "junk and minimized excluded")
 }
 
 print("\n\(total - failures)/\(total) checks passed")

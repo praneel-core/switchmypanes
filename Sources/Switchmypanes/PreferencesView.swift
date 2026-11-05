@@ -3,6 +3,7 @@ import SwitchmypanesCore
 
 struct PreferencesView: View {
     @ObservedObject var settings: SettingsStore
+    private let spacesAvailable = makeSpaceProvider() is CGSSpaceProvider
 
     private func binding(_ m: ShortcutModifiers) -> Binding<Bool> {
         Binding(get: { settings.snapModifiers.contains(m) },
@@ -13,6 +14,14 @@ struct PreferencesView: View {
         Form {
             Section("Window switcher") {
                 Toggle("Option+Tab switches between windows", isOn: $settings.switcherEnabled)
+                Toggle("Include windows from other desktops", isOn: $settings.includeOtherDesktops)
+                    .disabled(!settings.switcherEnabled || !spacesAvailable)
+                Toggle("Include full-screen apps", isOn: $settings.includeFullScreen)
+                    .disabled(!settings.switcherEnabled || !spacesAvailable)
+                if !spacesAvailable {
+                    Label("macOS did not provide desktop information, so only windows on the current desktop are listed.",
+                          systemImage: "exclamationmark.triangle").font(.caption).foregroundStyle(.orange)
+                }
                 Text("Hold Option and press Tab. Tab / Shift+Tab or the arrow keys move, release Option to switch, Esc cancels. Cmd+Tab is not changed.")
                     .font(.caption).foregroundStyle(.secondary)
             }

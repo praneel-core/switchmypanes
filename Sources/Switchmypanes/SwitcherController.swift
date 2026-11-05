@@ -29,7 +29,7 @@ final class SwitcherController {
     func begin(reverse: Bool) {
         guard !isActive else { return }
         inventory.noteFrontmost()
-        var list = inventory.snapshot()
+        var list = inventory.snapshot(includeOtherSpaces: true)
         guard !list.isEmpty else { return }
 
         let screen = DisplayProvider.screenUnderMouse()
@@ -68,7 +68,8 @@ final class SwitcherController {
         guard isActive else { return }
         panel.present(windows: windows, layout: layout, selected: selection.index, on: screen,
                       thumbnail: { [thumbnails] in thumbnails.cached($0) })
-        thumbnails.refresh(windowIDs: windows.map(\.id)) { [weak self] id, image in
+        // Windows on other Spaces cannot be captured; they show their last cached picture, or the app icon.
+        thumbnails.refresh(windowIDs: windows.filter(\.isOnCurrentSpace).map(\.id)) { [weak self] id, image in
             guard let self, self.isActive else { return }
             self.panel.setThumbnail(image, for: id)
         }

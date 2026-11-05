@@ -21,13 +21,20 @@ public struct MRUList<ID: Hashable> {
         return unknown + order.filter { liveSet.contains($0) }
     }
 
-    /// Store the result of `ordered(live:)` and drop very old dead entries.
+    /// Remember windows we have not seen before (in front, in z-order) WITHOUT disturbing the relative order
+    /// of everything else. Windows that are not "live" right now (for example on another Space) keep their
+    /// place, so recency still means something across Spaces. Only when the list grows past `cap`
+    /// are the oldest non-live entries dropped.
     public mutating func reconcile(live: [ID]) {
-        let merged = ordered(live: live)
+        let known = Set(order)
+        order = live.filter { !known.contains($0) } + order
+        guard order.count > cap else { return }
         let liveSet = Set(live)
-        let dead = order.filter { !liveSet.contains($0) }
-        // keep dead ones only while there is room (a window on another Space may come back)
-        order = merged + dead.prefix(max(0, cap - merged.count))
+        var excess = order.count - cap
+        order = order.reversed().filter { id in
+            if excess > 0 && !liveSet.contains(id) { excess -= 1; return false }
+            return true
+        }.reversed()
     }
 }
 

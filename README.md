@@ -11,6 +11,10 @@ Free, local only: no accounts, no network calls, no analytics. Phase 1 of 3: see
   Cmd+Tab is untouched.
 - **Drag to snap**: drag a window by its title bar to the left or right edge (half), top edge (maximize) or a corner
   (quarter). A translucent preview shows where it will land; release to snap. Edges shared with another display are ignored.
+- **Other desktops and full-screen apps**: the overlay also lists windows on other desktops (Spaces) and full-screen
+  apps, each with a small "Desktop 2" / "Full screen" tag. Choosing one makes macOS switch to that desktop.
+  Both can be turned off in Preferences. Thumbnails for these show the last picture taken while the window was
+  visible, otherwise the app icon (macOS cannot capture windows that are not showing).
 - **Snap Layouts** (**Option+Z**): pick one of nine layouts (halves, thirds, three columns, 2×2 grid, ...) with the
   arrow keys + Return, the digits 1–9, or the mouse. Then, for each area in turn (outlined on screen), pick a window;
   it moves there immediately. Space skips an area, Esc stops (windows already placed stay). Note that Option+Z
@@ -61,7 +65,7 @@ Menu: Preferences, Permissions, Pause / Resume, Quit. `open switchmypanes://paus
 
 ## Known limits in Phase 1
 
-Current Space only; minimized windows not listed; thumbnails are captured when the overlay opens (placeholders
+Minimized and hidden windows are not listed yet; thumbnails are captured when the overlay opens (placeholders
 show app icons for the first moment); with a very large number of windows the overlay shows only as many as fit
 the screen; no drag-to-edge, Snap Assist or Snap Layouts yet (Phase 2).
 No automated tests can click macOS permission dialogs; see the manual test checklist below.
@@ -82,4 +86,5 @@ No automated tests can click macOS permission dialogs; see the manual test check
 12. Drag a window by its title bar to each edge and corner: preview appears and follows the cursor; release snaps; Control+Option+Down then restores the old size. With two displays, dragging across the middle must NOT snap.
 13. Option+Z: pick "Three columns" (press 3): the first area is outlined, windows are listed with the front one selected. Place three windows with Return; each should move and come to the front. Try Space to skip, Esc halfway, and clicking outside the picker (it should close). Set a gap in Preferences and re-run: gaps should be even.
 14. Snap Assist: snap a window Left (Control+Option+Left): after a moment, other windows appear over the right half with the first selected. Return fills it. Try: click a tile; Esc; clicking elsewhere; pressing Control+Option+Up right after the snap (it should close Assist AND make the top-left quarter, with no flash if you press quickly). Repeat with a drag to the right edge.
-15. Menu bar: Pause stops all shortcuts; Resume restores; Quit removes the icon.
+15. Spaces: create a second desktop (Mission Control, +) and put a window there; make an app full screen (green button). Go back to your first desktop and press Option+Tab: those windows appear, tagged "Desktop 2" / "Full screen". Select one and release Option: macOS should switch to its desktop and that window should be in front. Test both with the app having ONLY that one window, and with the app also having a window on your current desktop (the harder case). Then turn the two options off in Preferences and check they disappear.
+16. Menu bar: Pause stops all shortcuts; Resume restores; Quit removes the icon.
