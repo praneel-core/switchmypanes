@@ -1,96 +1,117 @@
 # Switchmypanes: architecture
 
-Native Swift/AppKit menu bar app. macOS 14+, Apple Silicon. Local only: no network code, no analytics.
+A native Swift / AppKit menu bar app for macOS 14+ (Apple Silicon). Local only: no network code, no analytics.
+
+## Design principles
+
+1. **Logic is separate from the screen.** Everything that can be wrong in subtle ways (geometry, the snapping state
+   machine, ordering, which keys are ours, linked-resize maths, shortcut rules) lives in `SwitchmypanesCore` as plain
+   Swift values in, values out. It is checked by `swift run CoreChecks` without a screen, permissions or other apps.
+2. **Private APIs are isolated, optional and self-checking.** Each one sits behind a small protocol, is looked up by name
+   at runtime (`dlsym`), and has a fallback. If macOS removes one, the app degrades; it never crashes.
+3. **Never leave the screen in a stuck state.** Every overlay has a way out: tap disabled by macOS, modifier released,
+   timeout, outside click, pause, quit. The event tap and all overlays are torn down on exit.
+4. **Do not trust an app to do what it was asked.** Apps apply resizes late, drop half of a size-plus-position pair, or
+   refuse sizes. Anything that depends on a window's real frame is decided from a settled reading, not an instant one.
 
 ## Folder structure
 
 ```
 Package.swift
 Sources/
-  SwitchmypanesCore/          PURE logic. No UI, no permissions. Fully tested.
-    Geometry.swift              coordinate conversion, DisplayInfo/DisplayLayout (multi-display)
-    SnapEngine.swift            zone frames, zone detection, Win+Arrow state machine, RestoreMemory
-    Switcher.swift              MRUList, SwitcherSelection (the "second window first" rule)
-    LinkedResize.swift          shared-divider resize geometry (which windows follow, minimum sizes, gaps)
-    SnapLayout.swift            the nine Snap Layouts presets + gap-aware zone frames
-    ShortcutRules.swift         shortcut display names + ShortcutValidator (which combinations are allowed)
-    AppExclusions.swift         per-app exclusion rules (switcher / snapping scopes) + shared bundle-ID matching
-    PreviewPolicy.swift         never-capture list + when automatic captures may run
-    KeyClassifier.swift         "what does this key press mean": the only place that decides what we swallow
-  Switchmypanes/              The app
-    main.swift, AppDelegate.swift      wiring, lifecycle, switchmypanes:// URLs
-    StatusItemController.swift         menu bar icon + menu
-    PermissionManager.swift, OnboardingWindow.swift   permission checks + plain-language checklist (live)
-    SettingsStore.swift, PreferencesView.swift        settings (SwiftUI only here)
-    ShortcutRecorder.swift, ModifierFlags.swift       click-to-record shortcut rows; the keyboard listener steps aside while recording
-    LoginItem.swift                    open at login via SMAppService
-    KeyboardMonitor.swift              the CGEventTap
-    WindowInventory.swift              window list + MRU tracking
-    WindowIDProvider.swift  (PRIVATE)  CGWindowID <-> AXUIElement, behind a protocol
-    SpaceProvider.swift                Spaces info, behind a protocol (Phase 1: current Space only)
-    ThumbnailService.swift             ScreenCaptureKit thumbnails + cache
-    SwitcherController.swift, SwitcherPanel.swift     the Option+Tab overlay
-    WindowActivator.swift              raise + focus a window
-    SnapController.swift, WindowMover.swift           keyboard snapping; place() is shared by drag + layouts
-    DragSnapController.swift, ZonePreviewOverlay.swift  drag-to-edge with preview
-    DividerOverlay.swift                               the draggable line between linked windows
-    LinkedGroupController.swift                        linked resizing of Snap Layouts groups (AX observers)
-    SnapAssistController.swift                         Snap Assist (empty half after a half-snap)
-    LayoutPickerController.swift, LayoutChoicePanel.swift  Snap Layouts (Option+Z), reuses SwitcherPanel for the window step
-    DisplayProvider.swift              the ONLY NSScreen -> top-left coordinate conversion
-    AX.swift                           small Accessibility helpers
-  CoreChecks/main.swift       test runner for SwitchmypanesCore (`swift run CoreChecks`)
-Support/Info.plist            LSUIElement (no Dock icon), URL scheme, bundle id
+  SwitchmypanesCore/            pure logic, fully tested
+    Geometry.swift                coordinate conversion (AppKit <-> top-left), DisplayInfo, DisplayLayout
+    SnapEngine.swift              zone frames and detection, the Win+Arrow state machine, drag-to-edge zones, RestoreMemory
+    SnapLayout.swift              the nine Snap Layouts presets with gap-aware zone frames
+    LinkedResize.swift            shared-divider resizing, dividers, hover zones, MinSizeLearning
+    Switcher.swift                MRUList, SwitcherSelection (the "second window first" rule)
+    SpaceClassifier.swift         which windows belong in the switcher (current / other desktop / minimized / junk)
+    KeyClassifier.swift           what a key press means: the ONLY place that decides which keys we swallow
+    ShortcutRules.swift           shortcut display names and ShortcutValidator (which combinations are allowed)
+    AppExclusions.swift           per-app exclusion rules (switcher / snapping scopes), bundle-ID matching
+    PreviewPolicy.swift           never-capture list and when automatic captures may run
+  Switchmypanes/                the app
+    main.swift                    entry point, diagnostic flags (--help, --list-windows, --selftest-*)
+    AppDelegate.swift             wiring and lifecycle, the switchmypanes:// URL scheme
+    StatusItemController.swift    menu bar icon and menu
+    PermissionManager.swift, OnboardingWindow.swift    permission checks and the live checklist
+    SettingsStore.swift, PreferencesView.swift         settings (SwiftUI is used only for Preferences)
+    ShortcutRecorder.swift, ModifierFlags.swift        click-to-record shortcuts
+    LoginItem.swift               open at login (SMAppService)
+    KeyboardMonitor.swift         the CGEventTap
+    WindowInventory.swift         window list, MRU tracking, minimized/hidden confirmation, exclusions
+    SwitcherController.swift, SwitcherPanel.swift      the Option+Tab overlay
+    ThumbnailService.swift, PreviewKeeper.swift        previews: capture, in-memory cache, when to capture
+    WindowActivator.swift         bring a window forward / close it, across desktops
+    SnapController.swift, WindowMover.swift            keyboard snapping, applying frames to windows
+    DragSnapController.swift, ZonePreviewOverlay.swift drag to an edge, with a preview
+    SnapAssistController.swift    the empty half after a half-snap
+    LayoutPickerController.swift, LayoutChoicePanel.swift   Snap Layouts
+    LinkedGroupController.swift, DividerOverlay.swift  linked resizing and the draggable line
+    DisplayProvider.swift         the ONLY NSScreen -> top-left conversion
+    AX.swift                      small, forgiving Accessibility helpers
+    WindowIDProvider.swift  (private)   CGWindowID <-> AXUIElement
+    SpaceProvider.swift     (private)   desktops: list, which window is where, switching
+    WindowFocusProvider.swift (private) focus one exact window on any desktop
+  CoreChecks/main.swift         the test runner (XCTest is not available with only the Command Line Tools)
+Support/Info.plist              no Dock icon, URL scheme, bundle id
 build.sh, tools/create-signing-identity.sh
 ```
-
-Why a separate Core library: everything that can be wrong in subtle ways (geometry, the snap state machine,
-ordering, which keys are ours) is plain Swift values in, values out, so it can be checked without a screen,
-permissions or another app.
 
 ## Public vs private API
 
 | Area | API | Public? |
 |---|---|---|
-| List windows on the current Space | `CGWindowListCopyWindowInfo` | public |
-| Move / resize / raise / minimize | Accessibility (`AXUIElement`) | public |
+| List windows | `CGWindowListCopyWindowInfo` (`.optionOnScreenOnly`, or `.optionAll` to include other desktops) | public |
+| Move, resize, raise, minimize, close | Accessibility (`AXUIElement`, `AXObserver`) | public |
 | Window thumbnails | ScreenCaptureKit `SCScreenshotManager` | public |
 | Keyboard shortcuts | `CGEventTap` | public |
-| Match a CG window with its AX window | `_AXUIElementGetWindow` | **private**, looked up with `dlsym`; missing -> nil -> frame/title matching |
-| Which Space a window is on, and Space kinds | `CGSCopySpacesForWindows`, `CGSCopyManagedDisplaySpaces`, `CGSMainConnectionID`, `CGSWindowIsOrderedIn` (optional) | **private**, `dlsym` + self-test in `CGSSpaceProvider`; failure -> `CurrentSpaceOnlyProvider` |
-| List windows including other Spaces | `CGWindowListCopyWindowInfo(.optionAll)` | public |
-| Switch to the desktop of a window | the user's own "Move left/right a space" shortcut, read with `CGSGetSymbolicHotKeyValue` and pressed with synthetic key events, so the Dock switches | **private** (hotkey lookup only), in `CGSSpaceProvider.switchToSpace` (asynchronous: waits until macOS has arrived). `CGSManagedDisplaySetCurrentSpace` is kept ONLY as a last resort: it bypasses the Dock, which then shows stale Mission Control / Dock UI |
-| Focus one exact window (any desktop) | SkyLight `_SLPSSetFrontProcessWithOptions` + `SLPSPostEventRecordTo`, `GetProcessForPID` | **private**, `SkyLightWindowFocus` behind `WindowFocusProvider`; missing -> app-level activation |
+| Mouse (drag to edge, hover) | `NSEvent` global monitors (no extra permission) | public |
+| Open at login | `SMAppService.mainApp` | public |
+| Match a CG window with its AX window | `_AXUIElementGetWindow` | **private**, `dlsym`; missing -> match by frame and title |
+| Which desktop a window is on, desktop kinds, "is it really showing" | `CGSCopySpacesForWindows`, `CGSCopyManagedDisplaySpaces`, `CGSMainConnectionID`, `CGSWindowIsOrderedIn` | **private**, `CGSSpaceProvider` with a self-test; failure -> `CurrentSpaceOnlyProvider` (current desktop only) |
+| Switch to a window's desktop | the user's own "Move left/right a space" shortcut, read with `CGSGetSymbolicHotKeyValue` and pressed with synthetic key events, so the Dock switches | **private** (the shortcut lookup only), in `CGSSpaceProvider.switchToSpace` |
+| Focus one exact window | SkyLight `_SLPSSetFrontProcessWithOptions` + `SLPSPostEventRecordTo`, `GetProcessForPID` | **private**, `SkyLightWindowFocus`; missing -> ask the app to come forward |
+| (last resort only) direct desktop switch | `CGSManagedDisplaySetCurrentSpace` | **private**; it bypasses the Dock, which then shows stale Mission Control UI, so it is used only if the shortcut route fails |
 
-Private rows today: window IDs, Spaces (list, ordered-in, switch), exact-window focus. Everything private is optional: losing it degrades, never crashes.
+## Permissions
 
-## Alt-Tab flow
+| Permission | Used for | Required |
+|---|---|---|
+| Accessibility | move/raise windows, read titles; lets the event tap swallow keys | yes |
+| Input Monitoring | the event tap seeing the shortcut keys | yes (the live "shortcuts active" line is the real test) |
+| Screen Recording | previews, and window titles from `CGWindowList` | optional |
 
+## How the main flows work
+
+### Option+Tab
 ```
-key event ──► KeyboardMonitor (event tap, main run loop)
-                │  KeyClassifier.classifyKeyDown(keyCode, modifiers, switcherActive, config)
-                ▼
-   passThrough ─► event goes on to the app untouched
+key event ─► KeyboardMonitor (event tap, main run loop)
+              KeyClassifier.classifyKeyDown(keyCode, modifiers, switcherActive, ...)
+   passThrough ─► the app receives the key untouched
    switcherOpen ─► SwitcherController.begin
-                     snapshot windows (MRU order) ─► SwitcherSelection(count) → index 1 ("previous window")
-                     isActive = true, watchdog timer starts
-                     after 120 ms: show SwitcherPanel (cached thumbnails), start fresh captures
-   Tab / Shift+Tab / arrows ─► selection moves ─► panel highlights
-   mouse hover / click ─► hover selects (ignored until the mouse really moves) / click commits
-   Option released (flagsChanged, or watchdog sees it up) ─► commit
+                    window snapshot in MRU order, selection starts on index 1
+                    after 120 ms the panel appears (a quick tap commits before that: no flash)
+   Tab / Shift+Tab / arrows / mouse ─► selection moves
+   modifier released (event, or the 0.1 s watchdog sees it up) ─► commit ─► WindowActivator ─► MRU updated
    Esc ─► cancel
-commit: end() (panel hidden, timers off) ─► WindowActivator.activate ─► WindowInventory.markUsed (MRU)
 ```
+The window list comes from `CGWindowList`; `SpaceClassifier` (Core) decides what to include; windows that look
+minimized/hidden are confirmed through Accessibility in the BACKGROUND (never on the key-press path). A window on
+another desktop that is not "ordered in" is a closed-to-background ghost (Claude, Slack…) and is dropped unless it was
+verified minimized earlier. Untitled windows that Accessibility does not recognise (Chrome's full-screen toolbar strip)
+are dropped too.
 
-A quick tap commits before the 120 ms delay, so the overlay never flashes; MRU then makes the next quick tap
-go back to where you came from. Stuck-state protection: tap disabled by macOS -> cancel; Option physically up
--> commit; open > 60 s -> cancel; app quit -> overlay and tap torn down.
+### Going to a window on another desktop
+`WindowActivator`: (1) `SpaceProvider.switchToSpace` presses the user's "Move left/right a space" shortcut once per
+desktop to cross, and waits until macOS has really arrived; (2) `WindowFocusProvider` focuses that exact window; (3) the
+Accessibility raise is retried until the window becomes reachable. Asking only the APP to come forward is not enough:
+if the app also has a window on the current desktop, macOS focuses that one and never switches. Closing a window on
+another desktop uses the same path, then presses the close button.
 
-## Snapping state machine
-
-State is **detected, not remembered**: `detectZone` compares the window's real frame with each zone's frame
-(12 pt tolerance), so it works even if you moved the window by hand in between.
-Only the *pre-snap frame* is remembered (`RestoreMemory`) for restore.
+### Snapping
+State is **detected, not remembered**: `detectZone` compares the window's real frame with each zone (12 pt tolerance), so
+it works even if you moved the window by hand. Only the pre-snap frame is remembered, for restore.
 
 ```
 unsnapped: ← left half   → right half   ↑ maximize        ↓ minimize
@@ -101,45 +122,54 @@ top-left:  ← prev display | → top-right ↑ maximize         ↓ bottom-left
 top-right: ← top-left    → next display | ↑ maximize       ↓ bottom-right
 bottom-left:  ← prev display | → bottom-right  ↑ top-left  ↓ restore
 bottom-right: ← bottom-left  → next display | ↑ top-right  ↓ restore
-Shift + ←/→ : move to the neighbouring display keeping the zone (or relative position if unsnapped)
+Shift + ←/→ : move to the neighbouring display keeping the zone
 ```
-(The full table is `SnapEngine.transition`, covered by `CoreChecks`.) Coordinates: AppKit is bottom-left, the
-Accessibility API is top-left; all logic uses top-left and converts once, in `DisplayProvider`.
+(The full table is `SnapEngine.transition`.) Coordinates: AppKit is bottom-left, Accessibility is top-left; all logic uses
+top-left and converts once, in `DisplayProvider`. Drag to an edge, Snap Assist and Snap Layouts all place windows through
+`SnapController.place`, so restore and linked-group release behave the same everywhere.
 
-## Permissions
+Snap Layouts and Snap Assist are modal: while one is open, `KeyClassifier` (with a `pickerActive` / assist flag) owns the
+keyboard. Safety nets: outside click, timeout, tap disabled, pause and quit all close it. Assist is lighter: any key that is
+not its own closes it and is then re-classified normally, so chained snaps still work.
 
-| Permission | Used for | Required |
-|---|---|---|
-| Accessibility | move/raise windows, window titles; also needed for the event tap to swallow keys | yes |
-| Input Monitoring | the event tap seeing the shortcut keys | yes (shown as such; the live "Shortcuts active" line is the real test) |
-| Screen Recording | thumbnails and window titles from `CGWindowList` | optional (icons + titles instead) |
+### Linked resizing
+`LayoutPickerController` and `SnapAssistController` report the windows they placed; `LinkedGroupController` records
+a group. The pieces:
 
-## Phase 2 plan (slots into the above)
+- **Geometry (Core, tested):** `LinkedResize.dividers` finds each divider (flood fill along a shared line, gap-aware);
+  `dragDivider` computes every window's frame for a line position as an absolute function of (layout when grabbed, line
+  position, learned minimum sizes); `resolve` does the same for a window dragged by its own edge.
+- **The line (`DividerOverlay`):** one thin, non-activating panel per divider, hidden and click-through until the cursor
+  hovers the middle of the seam (`Divider.revealZone` / `keepZone`); driven by global and local mouse-moved monitors.
+- **Driving the windows:** dragging the line sets every window itself, shrinking window first, and with NO read-backs
+  mid-drag, because apps apply resizes late and can drop either the size or the position of a back-to-back pair.
+- **Settling:** after you pause, `verify` compares reality with the intent. A window that is off gets the missing change
+  re-sent, one change at a time. Only a window that stays too big after repairs, on two readings, has its minimum learned
+  (`MinSizeLearning`), and the group is re-applied from the grab-time layout.
+- **Resizing a window by its own edge** is still noticed, by AX notifications and by polling on mouse-drag events.
+- **Leaving a group:** dragging a window away, snapping it (`SnapController.onWillMoveWindow`) or closing it.
 
-- DONE: drag-to-edge (`DragSnapController`, `ZonePreviewOverlay`) and Snap Layouts (`LayoutPickerController`; modal keys are classified in `KeyClassifier` with a `pickerActive` flag; safety nets: outside click, 3-minute timeout, tap-disabled, pause and quit all cancel it).
-- DONE: Snap Assist (`SnapAssistController`): `SnapController.onSnapped` -> 0.25 s delay -> `SwitcherPanel` centred on the empty half; `KeyClassifier` assist mode (`pickerDismiss` closes it and re-classifies the same key). Halves only; quarters are a possible follow-up.
-- DONE: other desktops + full-screen apps in the switcher (`SpaceClassifier` in Core decides what to include; `CGSSpaceProvider` supplies the data; `WindowActivator` switches to the window's desktop, focuses that exact window, then retries the Accessibility raise; asking only the APP to come forward does not work when the app also has a window on the current desktop, since macOS then focuses that one). Snap Layouts / Assist deliberately stay on the current Space: Accessibility cannot move windows on other Spaces.
-- DONE: close from the overlay (hover ✕, Delete / W): `KeyAction.switcherClose`, `WindowActivator.close` presses the AX close button, `SwitcherController.removeIfGone` re-checks after 0.25 s and 0.7 s so "Save changes?" windows keep their tile.
-- DONE: minimized + hidden windows. macOS reports both as "not drawn, on the current Space" (`hiddenOrMinimized`); `WindowInventory` confirms through Accessibility in the BACKGROUND (never on the key-press path) and caches the label. Windows on other desktops that are not "ordered in" (`orderedOutElsewhere`, via private `CGSWindowIsOrderedIn`) are closed-to-background ghosts and are only listed if they were verified minimized earlier.
-- DONE: closing a window on another desktop = switch there (`WindowActivator.onOtherSpace`), then press its close button once Accessibility can see it.
-- DONE: event-driven preview cache. `WindowInventory.onFrontWindowChanged` -> `PreviewKeeper` captures the window you left, and the one you settled into (3 s), plus a 60 s refresh of that single window; gated by `PreviewPolicy` (Core, tested: off / paused / locked / idle / Low Power) and an exclusion list enforced in ONE place, `ThumbnailService.isAllowed` (capture AND display). Memory only, capped at 60.
-- Switcher still to do: all-screens / current-screen option, live thumbnails.
-- DONE: shortcut recorder (validated in Core by `ShortcutValidator`; `KeyboardMonitor.isSuspended` while recording) and launch at login (`SMAppService.mainApp`). Phase 2 is complete apart from the optional "all screens / current screen only" switcher setting.
+`--selftest-linked` proves all of this against separate helper processes, including windows that apply sizes late and a
+window that refuses to shrink.
 
-## Phase 3 plan
-
-- DONE (Snap Layouts groups only): linked resizing. `LinkedResize` (Core, tested) computes the new frames when a shared divider is dragged (flood fill along the divider, gap-preserving, minimum-size stop); `LinkedGroupController` registers the groups `LayoutPickerController` creates, watches members with public AX observers (resized / moved / destroyed), and applies the result with `WindowMover`. Apps with a bigger minimum than the default are handled by `MinSizeLearning` (Core, tested): the model keeps the INTENDED frames, `verify` compares with reality, and an app that is too big on two consecutive checks (so a slow app is not mistaken for a stubborn one) gets its real minimum remembered per app, after which `resolve` stops the divider there. Non-resizable windows are not linked. The primary interaction is a divider line (`DividerOverlay`, hidden and click-through until the cursor hovers the middle of the seam: `Divider.revealZone` / `keepZone` in Core, tested; a global + local mouse-moved monitor drives it; one thin non-activating panel per divider, geometry from `LinkedResize.dividers` / `dragDivider`, both tested in Core): dragging it makes `LinkedGroupController` set every window itself. Each drag step is an absolute function of (layout when grabbed, line position, learned minimums), with NO read-backs mid-drag, because apps apply resizes late and sometimes drop the size or the position of a back-to-back pair (found with `--selftest-linked`'s slow-app scenario). After you pause, `verify` compares reality with the intent: a window that is off gets the missing change re-sent one at a time; only a window that stays too big after repairs, on two readings, has its minimum learned, and the group is re-applied from the baseline. Resizing a window by its own edge is still detected, two ways, because apps differ: public AX notifications (all four resized/moved spellings) AND polling the group's windows on every global mouse-drag event (`poll()`), so an app that sends no notifications still works. `--selftest-linked` proves both paths with separate helper processes. A window leaves its group when dragged away, snapped (`SnapController.onWillMoveWindow`) or closed. Snap Assist pairs are registered too (`SnapAssistController.onPairPlaced`, fed by `SnapController.onSnapped`, which now passes the snapped window). NOT built: raising a group together, groups from windows lined up by hand.
-- Remaining: groups from windows lined up by hand (needs guessing from positions), if wanted.
-- DONE: per-app exclusions. `AppExclusion` (Core, tested) has two scopes; `WindowInventory.snapshot(for:)` filters the switcher and the Snap Assist / Snap Layouts lists, and `SnapController` / `DragSnapController` check before moving a window. Stored as JSON in UserDefaults.
-- Task View-style overview.
-- Live-updating thumbnails.
-- Optional small item: "all screens / current screen only" switcher setting.
+### Previews
+A window cannot be captured while it is not showing, so `PreviewKeeper` captures a window when you leave it, and once after
+you settle into it, with a slow refresh for a long stay. It is gated by `PreviewPolicy` (off, paused, locked, idle, Low
+Power) and by the never-capture list, which is enforced in one place (`ThumbnailService.isAllowed`) for both capturing and
+displaying. Pictures live in memory only (capped).
 
 ## Decisions
 
-- **Cmd+Tab is never overridden** (cancelled 2026-11-05). Swallowing it and disabling the native shortcut needs private
-  APIs that can leave the system shortcut disabled if the app crashes. Cmd+Tab and Cmd+` always belong to macOS; the
-  shortcut recorder refuses to assign them.
-- **No Option+` per-app cycling** (built, then dropped). macOS already cycles an app's windows with Cmd+`, and Windows'
-  Alt+Tab has no such mode, so it added a shortcut without adding capability. The code is preserved on the unmerged
-  branch `feature/per-app-cycling` if it is ever wanted.
+- **Cmd+Tab and Cmd+\` are never overridden.** Swallowing them and disabling the native shortcut needs private APIs that can
+  leave the system shortcut disabled if the app crashes. The shortcut recorder refuses to assign them.
+- **No Option+\` per-app cycling.** Built, then dropped: macOS already cycles an app's windows with Cmd+\`, and Windows'
+  Alt-Tab has no such mode. The code is on the unmerged branch `feature/per-app-cycling`.
+- **Switch desktops through the Dock.** The direct `CGSManagedDisplaySetCurrentSpace` call works but leaves the Dock out
+  of sync (stale Mission Control strip, Dock over a full-screen window, broken navigation back). Pressing the user's own
+  shortcut keeps the Dock in charge.
+- **No "all screens / current screen only" switcher setting yet.** It was in the original brief but only matters with more
+  than one display; it can be added later as a filter on the window list using `DisplayLayout`.
+
+## Not built (ideas)
+Linked groups from windows lined up by hand (needs guessing from positions); raising a group together; a Task View-style
+overview; live-updating thumbnails while the overlay is open; the all-screens setting above.

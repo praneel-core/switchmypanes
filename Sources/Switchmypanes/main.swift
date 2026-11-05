@@ -1,6 +1,27 @@
 import AppKit
 import SwitchmypanesCore
 
+// `Switchmypanes --help` lists the diagnostic flags (nothing here runs in normal use of the app).
+if CommandLine.arguments.contains("--help") || CommandLine.arguments.contains("-h") {
+    print("""
+    Switchmypanes: Windows-style Alt-Tab and window snapping for macOS (a menu bar app).
+    Started without flags it runs as the menu bar app. Diagnostic flags (run the binary from a terminal):
+
+      --list-windows            print the windows the switcher would show (app, title, desktop / minimized status,
+                                whether a preview could be captured), then exit. No side effects.
+          --exclude=<bundle id> also apply a "hide from switcher" exclusion (repeatable), to test the rule.
+      --selftest-linked         test linked resizing against helper processes (normal, stubborn and slow apps, and the
+                                hover behaviour). Opens nearly invisible helper windows in the bottom-right corner for
+                                about a minute. Prints PASS / FAIL.
+      --selftest-spaces         test going to a window on another desktop whose app also has a window here.
+                                WARNING: it switches your desktop and back. Prints SKIPPED if you have no such setup.
+      --help, -h                this text
+
+    Environment: SWITCHMYPANES_DEBUG=1 logs what linked resizing is doing to the terminal.
+    """)
+    exit(0)
+}
+
 // Diagnostic: `Switchmypanes --list-windows` prints the windows the switcher would show (with their
 // desktop / minimized status), then exits. Handy for checking what macOS reports. Prints to the terminal only.
 if CommandLine.arguments.contains("--list-windows") {

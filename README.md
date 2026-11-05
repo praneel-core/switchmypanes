@@ -1,151 +1,175 @@
 # Switchmypanes
 
-Windows-style **Alt-Tab** (individual windows, most-recently-used order) and **window snapping** for macOS.
-Free, local only: no accounts, no network calls, no analytics. Phase 1 of 3: see [ARCHITECTURE.md](ARCHITECTURE.md).
+Windows-style **Alt-Tab** and **window snapping** for macOS, in a small menu bar app.
 
-## What it does now
+- **Option+Tab** switches between individual *windows* (not apps), most recently used first, with thumbnails.
+- **Snapping**: keyboard shortcuts, drag to a screen edge, **Snap Assist**, **Snap Layouts**, and linked resizing of snapped windows.
+- Free and fully local: no accounts, no network calls, no analytics.
 
-- **Option+Tab**: overlay with a thumbnail, app icon and title for each window on the current Space.
-  Hold Option, tap Tab / Shift+Tab (or use the arrow keys) to move, release Option to switch, Esc to cancel,
-  or click a window. The second window is preselected, so a quick tap toggles between your last two windows.
-  Cmd+Tab is untouched.
-- **Drag to snap**: drag a window by its title bar to the left or right edge (half), top edge (maximize) or a corner
-  (quarter). A translucent preview shows where it will land; release to snap. Edges shared with another display are ignored.
-- **Excluded apps** (Preferences → Excluded apps): pick apps Switchmypanes should leave alone, per app: *Hide from
-  switcher* (not listed in Option+Tab) and/or *Never snap* (the snap shortcuts, dragging to edges, Snap Assist and Snap
-  Layouts ignore it). Separate from the "never take previews of" list, which only controls pictures.
-- **Close windows from the overlay**: hover a tile and click the red ✕, or highlight a window and press **Delete** or
-  **W**. It closes exactly as if you had clicked its close button, so "Save changes?" prompts still appear (the tile
-  stays until the window is really gone). For a window on another desktop (including a full-screen app) it first switches to that desktop, then closes it.
-- **Minimized and hidden windows**: minimized windows and windows of hidden (Cmd+H) apps are listed too, tagged
-  "Minimized" / "Hidden"; choosing one restores it. Helper windows that apps draw but that are not real windows (for example Chrome's full-screen toolbar strip) are
-  hidden too. Apps like Claude or Slack that "close" a window to the
-  background without destroying it are NOT listed (they are not really showing anywhere). Toggle in Preferences.
-- **Other desktops and full-screen apps**: the overlay also lists windows on other desktops (Spaces) and full-screen
-  apps, each with a small "Desktop 2" / "Full screen" tag. Choosing one switches to that desktop (by pressing your own "Move left/right a space" keyboard shortcut for you, so the Dock does it properly, with the normal slide animation) and focuses that exact window, even when the same app also has a window on the desktop you are on (for example VS Code full screen on one desktop and another VS Code window here).
-  Both can be turned off in Preferences. macOS cannot capture a window that is not showing, so these tiles show the last picture
-  taken while the window was visible. To have one ready, Switchmypanes takes a picture of a window when you *leave*
-  it, and once after you have settled into it (plus a slow refresh if you stay a long time). There is no timer
-  polling every window. It does nothing while the screen is locked, you are idle, Low Power Mode is on, or it is
-  switched off in Preferences, and it never captures apps on the "never take previews" list (password managers by
-  default). Pictures are kept in memory only, never saved or sent. A window that has not been visible since
-  Switchmypanes started shows its app icon until you visit it.
-- **Snap Layouts** (**Option+Z**): pick one of nine layouts (halves, thirds, three columns, 2×2 grid, ...) with the
-  arrow keys + Return, the digits 1–9, or the mouse. Then, for each area in turn (outlined on screen), pick a window;
-  it moves there immediately. Space skips an area, Esc stops (windows already placed stay). Note that Option+Z
-  normally types “Ω”; turn this off in Preferences if you need it.
-- **Linked resizing, with a divider line**: windows you place with **Snap Layouts**, and the pair you make with
-  **Snap Assist** (snap one window to a half, pick another for the empty half), are linked. Move the cursor to the
-  **middle of the seam** between them: a thin accent-coloured line with a small grip fades in, meaning "these windows
-  are linked". It is hidden the rest of the time, and while hidden it never gets in the way of clicks. It stays while
-  the cursor is anywhere along the line (or you are dragging it) and fades out a moment after the cursor leaves.
-  (Hovering near the ends of the seam does not reveal it, so scrollbars stay untouched.) **Drag the line** and the windows on both sides resize together, so they stay flush (in a 2×2 grid the
-  whole vertical or horizontal line moves; with three columns, the line between two columns). The line stops where a
-  window cannot get any smaller; dragging back always works. Some apps apply a resize a moment late, or drop half of it
-  (a new size OR a new position): Switchmypanes checks where the windows really ended up when you pause, re-sends what
-  is missing, and only then decides an app really has a minimum size, so a window can look a little off for up to a
-  second after you let go before it settles into place. A window leaves the group (and the line
-  disappears) when you drag it away, snap it elsewhere, or close it. Resizing a window by its own edge also still
-  pulls its neighbours along. Only windows placed through Snap Layouts or Snap Assist are linked, not ones lined up by
-  hand. Toggle in Preferences.
-- **Snap Assist**: after a window is snapped to the left or right half (keyboard or drag), thumbnails of your other
-  windows appear over the empty half. Click one, or use the arrows + Return, and it fills the space. Esc, a click
-  elsewhere, or any other key closes it (and that key then does its normal job, so chaining snaps works).
-- **Snapping** with **Control+Option+Arrow**: Left / Right = half, Up = maximize, Down = restore (or minimize if
-  not snapped). Left then Up = top-left quarter, etc. Add **Shift** to move the window to another display.
-  The modifiers and a gap between windows are configurable in Preferences.
+Built for Apple Silicon Macs on macOS 14 or later. [ARCHITECTURE.md](ARCHITECTURE.md) explains how it works.
 
-## Preferences
+## Install
 
-Menu bar icon → Preferences. **Shortcuts**: click a shortcut, press the new combination (Esc cancels). The switcher takes
-modifier(s) + Tab, snapping takes modifiers + an arrow key, Snap Layouts takes modifier(s) + any key. Combinations that
-clash with macOS (⌘Tab) or with text editing (⌥← jumps a word) are refused with a reason. **Open at login** uses
-macOS's own login-item system (System Settings → General → Login Items); install the app first (`./build.sh install`)
-so the login item points at `~/Applications`, not `build/`.
-
-## Build and run
-
-Needs only the Xcode Command Line Tools (`xcode-select --install`); full Xcode is not required.
+You need the Xcode Command Line Tools (`xcode-select --install`). Full Xcode is not required.
 
 ```bash
-# one time (recommended): stable signing identity so permissions survive rebuilds
+git clone https://github.com/praneel-core/switchmypanes.git && cd switchmypanes
+
+# One time, recommended: a stable signing identity, so macOS remembers the permissions between builds.
 ./tools/create-signing-identity.sh      # asks for your login password; creates "Switchmypanes Local Dev"
 
-./build.sh            # builds build/Switchmypanes.app
-./build.sh run        # build and launch
-./build.sh install    # build, copy to ~/Applications and relaunch
-swift run CoreChecks  # run the logic checks
+./build.sh install                      # builds, copies to ~/Applications, and launches
 ```
 
-Without the identity, `build.sh` still works but signs ad-hoc, and macOS forgets the permissions on each rebuild.
-(If you would rather reuse an identity you already have: `SIGN_IDENTITY="Your Identity Name" ./build.sh`.)
+Without the identity `build.sh` still works but signs ad-hoc, and macOS forgets the permissions after every rebuild.
+To reuse an identity you already have: `SIGN_IDENTITY="Your Identity Name" ./build.sh`.
+Other commands: `./build.sh` (build only), `./build.sh run` (build and launch from `build/`).
 
-## First launch: permissions
+**First launch:** a checklist window asks for three permissions. Click each button, switch Switchmypanes on in System
+Settings, and come back (the status updates live). If it still says the shortcuts are inactive, click *Relaunch*.
 
-A checklist window opens. For each of **Accessibility**, **Input Monitoring** and (optionally) **Screen Recording**,
-click the button, switch Switchmypanes on in System Settings, and come back; the status updates live.
-If the status line still says shortcuts are inactive after granting, click *Relaunch Switchmypanes*.
-Screen Recording only adds the window previews.
+| Permission | Why | Required |
+|---|---|---|
+| Accessibility | move, resize and raise other apps' windows | yes |
+| Input Monitoring | notice its own shortcuts (Option+Tab and the snap keys) | yes |
+| Screen Recording | the small window previews in the overlay | optional (icons and titles without it) |
 
-## What the keyboard listener does and doesn't read
+## Shortcuts at a glance
 
-Option+Tab and the snap shortcuts need a system-wide keyboard listener (a CGEventTap). For each key press it
-looks at two things: the key code and which modifier keys are held, and checks whether that is one of its own
-shortcuts. Everything else is passed on untouched. It does not read characters, does not store or log anything
-typed, and cannot see into password fields (macOS hides those from all apps). It only swallows Option+Tab, the
-snap shortcuts, and, while the overlay is open, Tab / arrows / Esc.
+All of these can be changed in Preferences (menu bar icon → Preferences).
+
+| Do this | To |
+|---|---|
+| **Option+Tab** (hold Option, tap Tab) | open the window switcher; release Option to switch |
+| Tab / Shift+Tab / arrow keys | move through the windows |
+| Esc | cancel |
+| Delete or W | close the highlighted window |
+| **Control+Option+←/→** | snap to the left / right half |
+| Control+Option+↑ | maximize |
+| Control+Option+↓ | restore the old size (or minimize if the window is not snapped) |
+| Left then Up (or Down) | top-left (bottom-left) quarter; the same for the right side |
+| add **Shift** to a snap shortcut | move the window to another display |
+| **Option+Z** | Snap Layouts picker |
+| drag a window's title bar to an edge or corner | snap it, with a preview |
+
+Cmd+Tab and Cmd+\` are never touched: they stay with macOS.
+
+## Features
+
+### Window switcher (Option+Tab)
+An overlay shows a thumbnail, app icon and title for each window, in most-recently-used order. The **second** window is
+preselected, so a quick tap toggles between your last two windows. Hover highlights (once the mouse really moves), click
+switches, and the overlay never takes keyboard focus until you commit. It can also list:
+- **Windows on other desktops and full-screen apps**, tagged "Desktop 2" / "Full screen". Choosing one switches to
+  that desktop (by pressing your own "Move left/right a space" shortcut, so the Dock does it properly) and focuses that
+  exact window, even if the same app also has a window on your current desktop.
+- **Minimized windows and windows of hidden (Cmd+H) apps**, tagged "Minimized" / "Hidden"; choosing one restores it.
+
+Apps that "close" a window to the background without destroying it (Claude, Slack, …) and helper windows that are not
+real windows are not listed. Each kind can be switched off in Preferences.
+
+Hover a tile and click the red ✕, or press **Delete / W**, to close a window. It closes exactly as if you had clicked
+its close button, so "Save changes?" prompts still appear. For a window on another desktop it switches there first.
+
+### Snapping
+- **Keyboard**: the shortcuts above follow the Windows Win+Arrow logic. A gap between windows is optional.
+- **Drag to an edge**: left / right edge = half, top edge = maximize, corners = quarters. A translucent preview shows
+  where the window will land. Edges shared with another display are ignored.
+- **Snap Assist**: after a window is snapped to a half, thumbnails of your other windows appear over the empty half.
+  Pick one and it fills the space. Esc, a click elsewhere, or any other key closes it (and that key then does its normal job).
+- **Snap Layouts** (Option+Z): nine layouts (halves, thirds, three columns, 2×2 grid, main + two stacked, …). Pick one
+  with the arrows and Return, the digits 1–9, or the mouse; then choose a window for each outlined area. Space skips an
+  area; Esc stops, keeping what is placed.
+
+### Linked resizing
+Windows placed by **Snap Layouts**, and the pair you make with **Snap Assist**, are linked. Move the cursor to the
+**middle of the seam** between them: a thin line with a grip fades in, meaning "these windows are linked". **Drag the
+line** and the windows on both sides resize together and stay flush (in a 2×2 grid a whole row or column moves). The line
+stops where a window cannot get any smaller. A window leaves its group when you drag it away, snap it elsewhere, or
+close it. Windows lined up by hand are not linked. Some apps apply a resize a moment late; after you let go they may take
+up to a second to settle into place.
+
+### Excluded apps
+In Preferences → Excluded apps, choose apps to leave alone: *Hide from switcher* (not listed in Option+Tab) and/or
+*Never snap* (the snap shortcuts, dragging, Snap Assist and Snap Layouts ignore it).
+
+### Previews
+macOS cannot take a picture of a window that is not showing, so tiles for windows on other desktops show the last
+picture taken while the window was visible. Switchmypanes takes one when you *leave* a window and once after you settle into
+it, plus a slow refresh if you stay long. Pictures live in memory only and are never saved or sent. It does nothing while
+the screen is locked, you are idle, or Low Power Mode is on; password managers are never captured by default; the whole
+thing can be switched off, and apps can be added to a never-capture list, in Preferences.
+
+## Preferences and menu bar
+Preferences has click-to-record **shortcuts** (clashes with macOS or with text editing, such as ⌘Tab or ⌥←, are refused
+with a reason), toggles for every feature, the gap between snapped windows, the never-capture and excluded-app lists, and
+**Open at login** (via macOS's own login items; install with `./build.sh install` first so it points at `~/Applications`).
+
+The menu bar menu has Preferences, Permissions, Pause / Resume and Quit. A `switchmypanes://` URL scheme also works:
+`open switchmypanes://pause`, `://resume`, `://preferences`, `://permissions`.
+
+## Privacy
+Everything stays on your Mac. The keyboard listener (a CGEventTap) looks only at the key code and which modifier keys
+are held, to see whether it is one of its own shortcuts; everything else passes through untouched. It never reads
+characters, stores or logs what you type, and cannot see into password fields (macOS hides those from every app). It
+swallows only Option+Tab, the snap and layout shortcuts, and, while an overlay is open, Tab / arrows / Esc / Return.
+
+## Troubleshooting
+- **Shortcuts do nothing:** open Permissions from the menu bar icon; Accessibility and Input Monitoring must both be on.
+  After granting, click *Relaunch*.
+- **Permissions reset after every build:** you are signing ad-hoc; run `./tools/create-signing-identity.sh` once.
+- **Option+Z types "Ω" / does nothing:** that is the Snap Layouts shortcut; change it in Preferences.
+- **Desktop switching needs the macOS shortcuts "Move left a space" / "Move right a space"** (System Settings →
+  Keyboard → Keyboard Shortcuts → Mission Control; on by default as ⌃← / ⌃→). If you turned them off, a direct switch is
+  used as a last resort and can leave stale Mission Control or Dock UI on screen; `killall Dock` fixes that harmlessly.
+- **A window is missing from the switcher:** run `Switchmypanes --list-windows` (below) to see what macOS reports.
+- **Linked resizing does not react:** no line when you hover the middle of the seam means the group was not created.
+  Quit Switchmypanes, run it from Terminal with `SWITCHMYPANES_DEBUG=1 ~/Applications/Switchmypanes.app/Contents/MacOS/Switchmypanes`,
+  reproduce it, and keep the lines starting with `[linked]` for a bug report.
 
 ## Diagnostics
+Run the binary with a flag: `~/Applications/Switchmypanes.app/Contents/MacOS/Switchmypanes <flag>` (or the copy in
+`build/`). `--help` lists them.
 
-**Linked resizing: no line appears, or it does not follow?** (Hover the middle of the seam: no line then means the group was not created.) Quit Switchmypanes from its menu, then run it from Terminal with logging:
-`SWITCHMYPANES_DEBUG=1 ~/Applications/Switchmypanes.app/Contents/MacOS/Switchmypanes`, reproduce the problem (fill a
-layout or pick a window in Snap Assist, then drag the divider) and send me the lines starting with `[linked]`. They show
-whether the group was created, what was sent to each window while you dragged, and what each window really did afterwards (`verify` lines). `Switchmypanes --selftest-linked`
-runs a built-in check with two nearly invisible helper windows (about 15 seconds, bottom-right corner) and prints
-PASS/FAIL.
+| Flag | What it does | Side effects |
+|---|---|---|
+| `--list-windows` | prints the windows the switcher would show, with desktop / minimized status and whether a preview could be captured; `--exclude=<bundle id>` tries an exclusion | none |
+| `--selftest-linked` | links helper windows and drags the divider through Accessibility (normal apps, a stubborn app, slow apps, and the hover behaviour); prints PASS/FAIL | opens nearly invisible helper windows in the bottom-right corner for about a minute |
+| `--selftest-spaces` | checks going to a window on another desktop whose app also has a window here | **switches your desktop and back**; says SKIPPED if you have no such setup |
+| `SWITCHMYPANES_DEBUG=1` (environment variable) | logs what linked resizing is doing | none |
 
-`build/Switchmypanes.app/Contents/MacOS/Switchmypanes --list-windows` prints, in the terminal, the windows the
-switcher would show (app, title, desktop / minimized status, and whether a thumbnail could be captured), then exits. Useful for "why is this window (not) listed".
+## Known limits
+- Windows on other desktops are shown with their last picture (or the app icon if none yet); snapping features only
+  work on the current desktop, because Accessibility cannot move windows on desktops that are not showing.
+- A window minimized less than about a second ago may not be listed yet.
+- With a very large number of windows the overlay shows only as many as fit the screen.
+- Linked resizing covers Snap Layouts and Snap Assist groups only, and apps differ in how quickly they follow a resize.
+- Not covered by automated tests, because they need real screens and permission dialogs: multiple displays and
+  Spaces behaviour on other Macs, and real-app feel. Please report what you find.
 
-`Switchmypanes --selftest-spaces` checks switching to a window on another desktop whose app also has a window on this one. **It switches your desktop and back** (needs such a setup, otherwise it says SKIPPED).
+## Testing
+```bash
+swift run CoreChecks     # the logic (geometry, snapping state machine, ordering, shortcut rules, linked resizing...)
+```
+XCTest is not available with only the Command Line Tools, so the logic checks are a plain executable
+(`Sources/CoreChecks`). The self-tests above exercise the app against real windows.
 
-**Desktop switching needs the macOS shortcuts “Move left a space” / “Move right a space”** (System Settings → Keyboard → Keyboard Shortcuts → Mission Control; on by default as ⌃← / ⌃→). If you have switched them off, Switchmypanes falls back to a direct desktop switch, which works but can leave the Dock showing stale Mission Control UI (if you ever see that, `killall Dock` fixes it instantly and harmlessly).
+<details>
+<summary>Manual test checklist</summary>
 
-## Menu bar and URL scheme
-
-Menu: Preferences, Permissions, Pause / Resume, Quit. `open switchmypanes://pause`, `://resume`,
-`://preferences`, `://permissions`.
-
-## Known limits in Phase 1
-
-A window minimized less than about a second ago may not be listed yet (the check runs in the background); thumbnails are captured when the overlay opens (placeholders
-show app icons for the first moment); with a very large number of windows the overlay shows only as many as fit
-the screen; no drag-to-edge, Snap Assist or Snap Layouts yet (Phase 2).
-No automated tests can click macOS permission dialogs; see the manual test checklist below.
-
-## Manual test checklist
-
-1. Run `./build.sh run`, grant the permissions; status should say "Keyboard shortcuts: active".
-2. Open 4+ windows across 2+ apps (two Safari windows, Finder, Terminal, Notes).
-3. Hold Option, tap Tab: overlay appears, second window selected. Tab / Shift+Tab / arrows move. Release: that window comes to the front.
-4. Quick tap Option+Tab twice: you go back and forth between the last two windows, and the overlay barely flashes.
-5. Option+Tab then Esc: nothing changes. Option+Tab then click a tile: switches.
-6. Hold Option+Tab, move the mouse over a tile: it highlights; do NOT move the mouse: selection stays on keys.
-7. Snap: focus a window, Control+Option+Left / Right / Up / Down; then Left then Up (top-left), Left then Down, Right then Up/Down.
-8. Down on a snapped window returns its old size; Down on a normal window minimizes it.
-9. Shift added: with a second display, the window moves there and keeps its snapped position. Try displays with different scales.
-10. Try a full-screen app (overlay should still appear on top; snapping does nothing to full-screen windows by design).
-11. Try an app with a minimum size (e.g. System Settings) in a quarter: it should sit in the right corner, not off-screen.
-12. Drag a window by its title bar to each edge and corner: preview appears and follows the cursor; release snaps; Control+Option+Down then restores the old size. With two displays, dragging across the middle must NOT snap.
-13. Option+Z: pick "Three columns" (press 3): the first area is outlined, windows are listed with the front one selected. Place three windows with Return; each should move and come to the front. Try Space to skip, Esc halfway, and clicking outside the picker (it should close). Set a gap in Preferences and re-run: gaps should be even.
-14. Snap Assist: snap a window Left (Control+Option+Left): after a moment, other windows appear over the right half with the first selected. Return fills it. Try: click a tile; Esc; clicking elsewhere; pressing Control+Option+Up right after the snap (it should close Assist AND make the top-left quarter, with no flash if you press quickly). Repeat with a drag to the right edge.
-15. Spaces: create a second desktop (Mission Control, +) and put a window there; make an app full screen (green button). Go back to your first desktop and press Option+Tab: those windows appear, tagged "Desktop 2" / "Full screen". Select one and release Option: macOS should switch to its desktop and that window should be in front. Test both with the app having ONLY that one window, and with the app also having a window on your current desktop (the harder case). Then turn the two options off in Preferences and check they disappear.
-16. Closing: open the overlay with 3+ windows (use throwaway windows, e.g. new Finder windows). Hover a tile: a red ✕ appears; click it: the window closes and the overlay re-flows. Press Option+Tab, Tab to a window, press Delete (then W): same. Try a TextEdit document with unsaved text: the save sheet appears and the tile stays. Close every window: the overlay should disappear on its own. Tiles for other desktops should show no ✕ and beep on Delete.
-17. Minimized/hidden: minimize a window (yellow button) and hide another app (Cmd+H). Option+Tab lists them tagged "Minimized"/"Hidden"; selecting one brings it back. Quit-to-background apps (close Claude's window with the red button) should NOT appear.
-18. Closing a full-screen window from the overlay (hover ✕) from another desktop: macOS should switch to it, close it, and usually return you. Tell me what you see.
-19. Previews: work in two windows on desktop 1 for a few seconds each, switch to another desktop, Option+Tab: both should show pictures. In Preferences, add an app to "Never take previews of": its tile should show only the icon. Switch the toggle off and confirm new windows stop getting pictures. If Activity Monitor shows Switchmypanes using noticeable CPU/energy while idle, tell me.
-20. Preferences: open it (it should fit your screen and scroll). Click the Snap Layouts shortcut, press ⌃⌥B: it changes; press Option+Z: it should now do nothing, ⌃⌥B opens the picker. Try ⌘Tab for the switcher (refused), ⌥← for snapping (refused). Record ⌃⌥Tab for the switcher: hold both, Tab cycles, releasing EITHER key commits. Use the reset arrows. While recording, pressing the current shortcut must NOT trigger it.
-21. Open at login: turn it on from the installed copy. If macOS asks, approve it in System Settings → General → Login Items; log out and in (or restart) and check that the menu bar icon is back. Turn it off again to test that too.
-22. Exclusions: in Preferences → Excluded apps, add Safari with only "Hide from switcher" ticked: its windows disappear from Option+Tab but still snap. Untick that and tick "Never snap": Control+Option+Left, dragging to an edge, and Snap Assist/Layouts all ignore Safari's windows. While IN an excluded app, Option+Tab should go to your most recent other window straight away. Remove the entry with the minus button: everything returns.
-23. Linked resize: Option+Z, pick "Halves", place two windows. No line should be visible; move the cursor to the middle of the seam between them: a coloured line with a grip fades in. Drag the LINE: both windows should resize together. Move the cursor away: it fades out after a moment. Hovering near the top or bottom end of the seam should not show it. Try "Grid 2 × 2" (dragging a vertical divider should move all four), "Three columns" (only the two beside the divider), and "Main + two stacked". Drag a window by its title bar away: it should leave the group and the others stop following. Try dragging the divider far, towards an app with a large minimum width (e.g. Calculator, System Settings): the divider should stop and nothing should overlap; then drag back: the link must still work. Same for Snap Assist: snap a window Left (Control+Option+Left), pick another for the right half, then drag the divider: both should move together; snapping either window again with a shortcut should release the link. Tell me which apps lag or refuse (some apps resize slowly).
-24. Menu bar: Pause stops all shortcuts; Resume restores; Quit removes the icon.
+1. **Setup**: `./build.sh install`, grant the permissions; the checklist should say the shortcuts are active.
+2. **Switcher**: with 4+ windows in 2+ apps, hold Option and tap Tab: the second window is preselected; Tab, Shift+Tab and the arrows move; releasing Option switches; Esc cancels; clicking a tile switches. Two quick taps toggle between the last two windows.
+3. **Close**: hover a tile and click ✕, or press Delete / W: the window closes and the overlay re-flows. A TextEdit document with unsaved text keeps its tile (the save sheet appears).
+4. **Minimized / hidden**: minimize a window and hide another app (Cmd+H): both appear tagged; choosing one brings it back.
+5. **Desktops**: put an app full screen and keep another of its windows on your main desktop. From the main desktop open the switcher and pick the full-screen one (and back): the slide animation plays, the right window is in front, and no Mission Control or Dock UI lingers.
+6. **Previews**: work in two windows for a few seconds each, switch desktop, open the switcher: both have pictures. Add an app to "never take previews": its tile shows only the icon.
+7. **Keyboard snapping**: Control+Option+←/→/↑/↓, then Left then Up (and Down) for quarters; Down on a snapped window restores it; Down on an unsnapped window minimizes it. Add Shift with a second display to move the window across.
+8. **Drag to snap**: drag a title bar to each edge and corner; the preview follows; release snaps; dragging across the middle of two displays does not snap.
+9. **Snap Assist**: snap a window Left; other windows appear over the right half; Return fills it; Esc, a click elsewhere, or Control+Option+Up right after the snap closes it.
+10. **Snap Layouts**: Option+Z, press 3 ("Three columns"), place three windows with Return; try Space (skip), Esc, and a click outside. Set a gap in Preferences and repeat: gaps are even.
+11. **Linked resizing**: after "Halves" no line is visible; hover the middle of the seam: it fades in; drag it: both windows resize; move away: it fades out; hovering near the ends of the seam does nothing. Try "Grid 2 × 2", "Three columns", and a Snap Assist pair. Drag toward an app with a large minimum width: the line stops, nothing overlaps, dragging back works. Drag a window away by its title bar: it leaves the group.
+12. **Exclusions**: add Safari with only "Hide from switcher": it disappears from the switcher but still snaps; with only "Never snap": the snap shortcuts, dragging and Assist ignore it.
+13. **Preferences**: record a new Snap Layouts shortcut (⌃⌥B) and check the old one stops working; ⌘Tab and ⌥← are refused; record ⌃⌥Tab for the switcher (releasing either key commits); the reset arrows work; while recording, the current shortcut does not trigger.
+14. **Open at login**: turn it on from the installed copy, approve it in System Settings if asked, log out and in: the menu bar icon returns.
+15. **Menu bar**: Pause stops every shortcut; Resume restores them; Quit removes the icon.
+</details>
