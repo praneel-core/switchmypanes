@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import SwiftUI
 import SwitchmypanesCore
 
@@ -25,6 +26,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, KeyboardMonitorDelegat
     private lazy var onboarding = OnboardingWindowController(keyboardActive: { [weak self] in self?.monitor.isRunning ?? false })
     private var preferencesWindow: NSWindow?
     private var retryTimer: Timer?
+    private var styleObserver: AnyCancellable?
 
     // MARK: lifecycle
 
@@ -37,6 +39,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, KeyboardMonitorDelegat
         statusItem.keyboardActive = { [weak self] in self?.monitor.isRunning ?? false }
         _ = statusItem
 
+        // The overlay look follows Preferences (panels pick it up the next time they appear).
+        styleObserver = settings.$overlayStyle.sink { OverlayTheme.style = OverlayTheme.Style(rawValue: $0) ?? .glass }
         monitor.delegate = self
         monitor.isSuspended = { [settings] in settings.isRecordingShortcut }
         switcher.requiredModifierFlags = { [settings] in settings.switcherModifier.cgFlags }

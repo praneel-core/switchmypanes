@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Overlay transparency: three looks (Glass, Frosted, Dark) in Preferences; Glass (default) is much clearer, using real Liquid Glass on macOS 26 and soft text shadows for legibility.
 - New overlay look for the window switcher, Snap Assist and Snap Layouts: glass panels, a highlight that slides between tiles, a keyboard-hint bar, colour-coded tags, a centred last row, and a quick fade-in.
 - Snap animation: a glowing outline travels from where a window was to where it lands (keyboard, drag, Snap Assist, Snap Layouts); switchable in Preferences.
 - The snap animation is a spring-animated outline (smoother, with a trailing echo, glow no longer clipped).

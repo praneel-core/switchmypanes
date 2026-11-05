@@ -72,7 +72,7 @@ final class WindowTileView: NSView {
         thumbFrame.wantsLayer = true
         thumbFrame.layer?.cornerRadius = 12
         thumbFrame.layer?.masksToBounds = true
-        thumbFrame.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.32).cgColor
+        thumbFrame.layer?.backgroundColor = NSColor.black.withAlphaComponent(OverlayTheme.thumbnailBackdropAlpha).cgColor
         thumbFrame.layer?.borderWidth = 1
         thumb.imageAlignment = .alignCenter
         thumb.imageScaling = .scaleProportionallyUpOrDown
@@ -94,6 +94,7 @@ final class WindowTileView: NSView {
         let tip = "\(info.appName) — \(info.title)" + (info.spaceLabel.map { " (\($0))" } ?? "")
         titleLabel.toolTip = tip
 
+        for l in [titleLabel, appLabel] { l.wantsLayer = true; l.shadow = OverlayTheme.softTextShadow() }     // readable on clear glass
         addSubview(thumbFrame); addSubview(badge); addSubview(titleLabel); addSubview(appLabel)
         if let tagView { addSubview(tagView) }
 
@@ -171,7 +172,7 @@ final class SwitcherPanel: NSPanel {
     override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
 
-    private let glass = OverlayTheme.makeGlass()
+    private var glass = OverlayTheme.makeGlass()
     private let ring = NSView()                          // the highlight that slides to the selected tile
     private let hintBar = HintBarView()
     private var tiles: [WindowTileView] = []
@@ -190,10 +191,10 @@ final class SwitcherPanel: NSPanel {
         collectionBehavior = base.collectionBehavior
         ring.wantsLayer = true
         ring.layer?.cornerRadius = 18
-        ring.layer?.backgroundColor = NSColor.white.withAlphaComponent(0.13).cgColor
+        ring.layer?.backgroundColor = NSColor.white.withAlphaComponent(0.16).cgColor
         ring.layer?.borderColor = NSColor.controlAccentColor.cgColor
         ring.layer?.borderWidth = 2.5
-        contentView = glass
+        contentView = glass.root
     }
 
     /// - Parameters:
@@ -203,6 +204,7 @@ final class SwitcherPanel: NSPanel {
                  caption: String? = nil, hints: [Hint] = [], center: NSPoint? = nil, show: Bool = true,
                  thumbnail: (CGWindowID) -> NSImage?) {
         let wasVisible = isVisible
+        if glass.style != OverlayTheme.style { glass = OverlayTheme.makeGlass(); contentView = glass.root }   // the look was changed in Preferences
         tiles.forEach { $0.removeFromSuperview() }
         tiles.removeAll()
         captionLabel?.removeFromSuperview(); captionLabel = nil
@@ -218,9 +220,10 @@ final class SwitcherPanel: NSPanel {
                         caption == nil ? 0 : 520)
         let height = CGFloat(layout.rows) * tile.height + CGFloat(layout.rows - 1) * sp + 2 * pad + header + footer
         let leftInset = (width - gridWidth) / 2
-        glass.setFrameSize(NSSize(width: width, height: height))
+        glass.root.setFrameSize(NSSize(width: width, height: height))
+        glass.content.frame = glass.root.bounds
 
-        glass.addSubview(ring)
+        glass.content.addSubview(ring)
         for (i, w) in windows.enumerated() {
             let row = i / layout.columns, col = i % layout.columns
             // An incomplete last row is centred, which looks tidier than hugging the left edge.
@@ -233,7 +236,7 @@ final class SwitcherPanel: NSPanel {
             v.onClick = { [weak self] in self?.onClick?($0) }
             v.onClose = { [weak self] in self?.onClose?($0) }
             v.onHover = { [weak self] idx in self?.hoverIfMouseMoved(idx) }
-            glass.addSubview(v)
+            glass.content.addSubview(v)
             tiles.append(v)
         }
         if let caption {
@@ -242,13 +245,14 @@ final class SwitcherPanel: NSPanel {
             l.textColor = NSColor.white.withAlphaComponent(0.78)
             l.alignment = .center
             l.frame = NSRect(x: pad, y: height - pad - 20, width: width - 2 * pad, height: 18)
-            glass.addSubview(l)
+            l.wantsLayer = true; l.shadow = OverlayTheme.softTextShadow()
+            glass.content.addSubview(l)
             captionLabel = l
         }
         if !hints.isEmpty {
             hintBar.hints = hints
             hintBar.frame = NSRect(x: 0, y: 6, width: width, height: footer - 6)
-            glass.addSubview(hintBar)
+            glass.content.addSubview(hintBar)
         }
         setSelected(selected, animated: false)
 
@@ -288,7 +292,7 @@ final class SwitcherPanel: NSPanel {
     }
 
     /// The panel's picture, for tests and previews (`--render-overlay`).
-    var contentSnapshotView: NSView { glass }
+    var contentSnapshotView: NSView { glass.root }
 
     func dismiss() {
         orderOut(nil)

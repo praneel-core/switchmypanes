@@ -61,6 +61,31 @@ enum OverlayPreview {
         ]
     }
 
+    /// `--selftest-overlay`: opens the REAL overlay (real glass) once per look and checks it comes up and goes away.
+    static func flashEachStyle() -> Bool {
+        let screen = NSScreen.main ?? NSScreen.screens[0]
+        let samples = sampleWindows()
+        let thumbs = Dictionary(uniqueKeysWithValues: samples.compactMap { w, img in img.map { (w.id, $0) } })
+        let windows = samples.map(\.0)
+        var ok = true
+        for style in OverlayTheme.Style.allCases {
+            OverlayTheme.style = style
+            let panel = SwitcherPanel()
+            panel.present(windows: windows, layout: SwitcherLayout.plan(count: windows.count, screen: screen), selected: 1, on: screen,
+                          hints: .switcher(modifier: "⌥"), thumbnail: { thumbs[$0] })
+            RunLoop.current.run(until: Date().addingTimeInterval(0.5))
+            let up = panel.isVisible && panel.frame.width > 300 && panel.contentView != nil
+            panel.setSelected(2)
+            RunLoop.current.run(until: Date().addingTimeInterval(0.3))
+            panel.dismiss()
+            let gone = !panel.isVisible
+            print("\(style.title): overlay \(up ? "appeared" : "DID NOT APPEAR"), \(gone ? "dismissed" : "STILL VISIBLE")")
+            ok = ok && up && gone
+        }
+        OverlayTheme.style = .glass
+        return ok
+    }
+
     // MARK: rendering
 
     private static func png(of view: NSView, over wallpaper: Bool, to url: URL) {
@@ -111,6 +136,12 @@ enum OverlayPreview {
         let warmUp = make(all, selected: 1, caption: nil, hints: .switcher(modifier: "⌥"))
         png(of: warmUp.contentSnapshotView, over: true, to: folder.appendingPathComponent(".warmup.png"))
         try? FileManager.default.removeItem(at: folder.appendingPathComponent(".warmup.png"))
+        for style in OverlayTheme.Style.allCases {
+            OverlayTheme.style = style
+            let panel = make(all, selected: 1, caption: nil, hints: .switcher(modifier: "⌥"))
+            png(of: panel.contentSnapshotView, over: true, to: folder.appendingPathComponent("switcher-\(style.rawValue).png"))
+        }
+        OverlayTheme.style = .glass
         let switcher = make(all, selected: 1, caption: nil, hints: .switcher(modifier: "⌥"))
         png(of: switcher.contentSnapshotView, over: true, to: folder.appendingPathComponent("switcher.png"))
         let few = make(Array(all.prefix(3)), selected: 1, caption: nil, hints: .switcher(modifier: "⌥"))

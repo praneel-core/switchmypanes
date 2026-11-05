@@ -102,7 +102,7 @@ the screen is locked, you are idle, or Low Power Mode is on; password managers a
 thing can be switched off, and apps can be added to a never-capture list, in Preferences.
 
 ## Preferences and menu bar
-Preferences has five tabs (General, Shortcuts, Switcher, Snapping, Apps). The overlays share one glass look with a keyboard-hint bar at the bottom, a highlight that slides to the selected tile, colour-coded tags, and a quick fade-in (all motion is skipped when macOS's Reduce motion is on). Preferences has click-to-record **shortcuts** (clashes with macOS or with text editing, such as ⌘Tab or ⌥←, are refused
+Preferences has five tabs (General, Shortcuts, Switcher, Snapping, Apps). The overlays share one glass look (three choices in Preferences → Switcher: **Glass**, the clearest and the default, which is real Liquid Glass on macOS 26; **Frosted**; and **Dark**, the heaviest and easiest to read over a busy desktop) with a keyboard-hint bar at the bottom, a highlight that slides to the selected tile, colour-coded tags, and a quick fade-in (all motion is skipped when macOS's Reduce motion is on). Preferences has click-to-record **shortcuts** (clashes with macOS or with text editing, such as ⌘Tab or ⌥←, are refused
 with a reason), toggles for every feature, the gap between snapped windows, the never-capture and excluded-app lists, and
 **Open at login** (via macOS's own login items; install with `./build.sh install` first so it points at `~/Applications`).
 
@@ -136,6 +136,7 @@ Run the binary with a flag: `~/Applications/Switchmypanes.app/Contents/MacOS/Swi
 |---|---|---|
 | `--list-windows` | prints the windows the switcher would show, with desktop / minimized status and whether a preview could be captured; `--exclude=<bundle id>` tries an exclusion | none |
 | `--render-overlay <folder>` | draws the overlays and the Preferences window offscreen, with sample windows, into PNG files (the blur is approximated by a flat fill) | none |
+| `--selftest-overlay` | opens the real overlay once per look (Glass / Frosted / Dark) and checks it comes up and goes away | the overlay flashes on screen three times, about a second each |
 | `--selftest-motion` | plays the snap animation once and checks it appears and then disappears completely | flashes a glowing rectangle on screen for about half a second |
 | `--selftest-linked` | links helper windows and drags the divider through Accessibility (normal apps, a stubborn app, slow apps, and the hover behaviour); prints PASS/FAIL | opens nearly invisible helper windows in the bottom-right corner for about a minute |
 | `--selftest-spaces` | checks going to a window on another desktop whose app also has a window here | **switches your desktop and back**; says SKIPPED if you have no such setup |

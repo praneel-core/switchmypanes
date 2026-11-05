@@ -11,6 +11,8 @@ if CommandLine.arguments.contains("--help") || CommandLine.arguments.contains("-
                                 whether a preview could be captured), then exit. No side effects.
           --exclude=<bundle id> also apply a "hide from switcher" exclusion (repeatable), to test the rule.
       --render-overlay <folder> draw the overlays offscreen with sample windows into PNG files (no side effects).
+      --selftest-overlay        open the real overlay once per look (Glass / Frosted / Dark) for about a second each, to check it
+                                works. WARNING: the overlay flashes on your screen three times. Prints PASS / FAIL.
       --selftest-motion         play the snap animation once on screen (a glowing rectangle for about half a second)
                                 and check it disappears again. Prints PASS / FAIL.
       --selftest-linked         test linked resizing against helper processes (normal, stubborn and slow apps, and the
@@ -34,6 +36,19 @@ if let i = CommandLine.arguments.firstIndex(of: "--render-overlay") {
     }
     print("rendered to \(folder)")
     exit(0)
+}
+
+// `Switchmypanes --selftest-overlay`: opens the real overlay once per look (Glass / Frosted / Dark) and checks it works.
+if CommandLine.arguments.contains("--selftest-overlay") {
+    var ok = false
+    MainActor.assumeIsolated {
+        let app = NSApplication.shared
+        app.setActivationPolicy(.accessory)
+        app.finishLaunching()
+        ok = OverlayPreview.flashEachStyle()
+        print(ok ? "PASS" : "FAIL")
+    }
+    exit(ok ? 0 : 1)
 }
 
 // `Switchmypanes --selftest-motion`: plays the snap animation once and checks it appears, then disappears completely.

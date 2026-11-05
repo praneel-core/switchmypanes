@@ -101,6 +101,12 @@ struct PreferencesView: View {
             .tabItem { Label("Shortcuts", systemImage: "keyboard") }
             Form {
     Section("Window switcher") {
+                    Picker("Overlay look", selection: $settings.overlayStyle) {
+                        ForEach(OverlayTheme.Style.allCases, id: \.rawValue) { Text($0.title).tag($0.rawValue) }
+                    }
+                    .pickerStyle(.segmented)
+                    Text("Glass is the clearest (real Liquid Glass on macOS 26); Frosted is in between; Dark is the heaviest and easiest to read over a busy desktop. Applies the next time an overlay opens.")
+                        .font(.caption).foregroundStyle(.secondary)
                     Toggle("Window switcher shortcut enabled", isOn: $settings.switcherEnabled)
                     Toggle("Include windows from other desktops", isOn: $settings.includeOtherDesktops)
                         .disabled(!settings.switcherEnabled || !spacesAvailable)

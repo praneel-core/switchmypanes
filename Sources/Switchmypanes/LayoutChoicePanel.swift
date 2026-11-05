@@ -71,7 +71,7 @@ final class LayoutChoicePanel: NSPanel {
     override var canBecomeMain: Bool { false }
 
     static let columns = 3
-    private let glass = OverlayTheme.makeGlass()
+    private var glass = OverlayTheme.makeGlass()
     private let hintBar = HintBarView()
     private var cells: [LayoutCellView] = []
     private var initialMouse = NSPoint.zero
@@ -84,13 +84,14 @@ final class LayoutChoicePanel: NSPanel {
         isFloatingPanel = base.isFloatingPanel; level = base.level; hasShadow = true; isOpaque = false
         backgroundColor = .clear; hidesOnDeactivate = false; animationBehavior = .none
         collectionBehavior = base.collectionBehavior
-        contentView = glass
+        contentView = glass.root
     }
 
     func present(layouts: [SnapLayout], selected: Int, on screen: NSScreen, show: Bool = true) {
         let wasVisible = isVisible
+        if glass.style != OverlayTheme.style { glass = OverlayTheme.makeGlass(); contentView = glass.root }   // the look was changed in Preferences
         cells.forEach { $0.removeFromSuperview() }; cells.removeAll()
-        glass.subviews.forEach { $0.removeFromSuperview() }
+        glass.content.subviews.forEach { $0.removeFromSuperview() }
         initialMouse = NSEvent.mouseLocation
         let cols = Self.columns, rows = Int((Double(layouts.count) / Double(cols)).rounded(.up))
         let cell = NSSize(width: 196, height: 146), sp: CGFloat = 10, pad: CGFloat = 24
@@ -99,14 +100,16 @@ final class LayoutChoicePanel: NSPanel {
         let gridW = CGFloat(cols) * cell.width + CGFloat(cols - 1) * sp
         let width = max(gridW + 2 * pad, HintBarView.preferredWidth(for: hints) + 2 * pad)
         let height = CGFloat(rows) * cell.height + CGFloat(rows - 1) * sp + 2 * pad + header + footer
-        glass.setFrameSize(NSSize(width: width, height: height))
+        glass.root.setFrameSize(NSSize(width: width, height: height))
+        glass.content.frame = glass.root.bounds
 
         let title = NSTextField(labelWithString: "Snap Layouts")
         title.font = .systemFont(ofSize: 13, weight: .semibold)
         title.textColor = NSColor.white.withAlphaComponent(0.78)
         title.alignment = .center
         title.frame = NSRect(x: pad, y: height - pad - 20, width: width - 2 * pad, height: 18)
-        glass.addSubview(title)
+        title.wantsLayer = true; title.shadow = OverlayTheme.softTextShadow()
+        glass.content.addSubview(title)
 
         let left = (width - gridW) / 2
         for (i, l) in layouts.enumerated() {
@@ -121,11 +124,11 @@ final class LayoutChoicePanel: NSPanel {
                 self.onHover?(idx)
             }
             v.isSelected = (i == selected)
-            glass.addSubview(v); cells.append(v)
+            glass.content.addSubview(v); cells.append(v)
         }
         hintBar.hints = hints
         hintBar.frame = NSRect(x: 0, y: 6, width: width, height: footer - 6)
-        glass.addSubview(hintBar)
+        glass.content.addSubview(hintBar)
 
         let vf = screen.visibleFrame
         setFrame(NSRect(x: vf.midX - width / 2, y: vf.midY - height / 2, width: width, height: height), display: true)
@@ -136,11 +139,11 @@ final class LayoutChoicePanel: NSPanel {
     func setSelected(_ index: Int) { for c in cells { c.isSelected = (c.index == index) } }
 
     /// The panel's picture, for previews (`--render-overlay`).
-    var contentSnapshotView: NSView { glass }
+    var contentSnapshotView: NSView { glass.root }
 
     func dismiss() {
         orderOut(nil)
-        glass.subviews.forEach { $0.removeFromSuperview() }
+        glass.content.subviews.forEach { $0.removeFromSuperview() }
         cells.removeAll()
     }
 }
