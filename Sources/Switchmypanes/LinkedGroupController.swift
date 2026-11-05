@@ -20,6 +20,7 @@ final class LinkedGroupController {
         var ignoreUntil = Date.distantPast      // our own changes echo back as notifications: ignore those briefly
         var minSize: CGSize?                    // the REAL minimum, learned when the app refuses to get smaller
         var refusals = 0                        // consecutive checks in which the app was bigger than asked
+        var repairs = 0                         // times we re-sent a size/position the app lost (some apps apply them late)
         init(id: Int, pid: pid_t, windowID: CGWindowID, element: AXUIElement, frame: CGRect) {
             self.id = id; self.pid = pid; self.windowID = windowID; self.element = element; self.frame = frame
         }
@@ -30,6 +31,9 @@ final class LinkedGroupController {
         let bounds: CGRect                      // the display's usable area, for WindowMover's min-size handling
         var lastDrag: (changed: Int, baseline: [Int: CGRect], userFrame: CGRect)?   // for re-checking after things settle
         var settleWork: DispatchWorkItem?       // debounced: runs once the drag has calmed down
+        var lastDivider: (divider: Divider, position: CGFloat, at: Date)?   // the divider drag that is (or was just) in progress
+        var quietUntil = Date.distantPast       // while we drive the divider ourselves, ignore the apps' own reports
+        var dragBaseline: [Int: CGRect] = [:]   // the layout at the moment the divider was grabbed
         var verifyPending = false               // throttled: runs at most every 0.15 s while dragging
         init(gap: CGFloat, bounds: CGRect) { self.gap = gap; self.bounds = bounds }
     }
@@ -157,53 +161,66 @@ final class LinkedGroupController {
         dividerEnded()
     }
 
+    /// Diagnostics: how many windows have a learned minimum size (should stay 0 unless an app really refuses to shrink).
+    var debugLearnedCount: Int { groups.reduce(0) { $0 + $1.members.values.filter { $0.minSize != nil }.count } }
+
     /// Diagnostics: where the first divider line currently is (top-left coordinates), if any.
     var debugFirstDividerPosition: CGFloat? { shown.first?.divider.position }
 
     private func dividerBegan(_ index: Int) {
         guard index < shown.count else { return }
         dragging = shown[index]
+        shown[index].group.dragBaseline = shown[index].group.members.mapValues(\.frame)
         log("divider grabbed (\(shown[index].divider.axis))")
     }
 
-    /// The user drags the line. We decide where every window goes, set them all, then READ BACK what the apps
-    /// really did: if a window refused to get smaller, the line stops there instead of overlapping it.
+    /// The user drags the line. Every step is computed from what we INTENDED the last step to be (never from reading the
+    /// apps back mid-drag: many apps apply a resize a moment late, so an immediate read shows stale sizes and would make
+    /// us pull windows back and forth, or wrongly decide an app cannot shrink). Whether an app really accepted the
+    /// sizes is judged once you pause (`verify`), on two readings.
     private func dividerMoved(_ index: Int, to position: CGFloat) {
         guard let (g, divider) = dragging else { return }
-        func readActual() -> [Int: CGRect] { g.members.mapValues { AX.frame($0.element) ?? $0.frame } }
-        func place(_ targets: [Int: CGRect], current: [Int: CGRect]) {
-            for (id, target) in targets {
-                guard let m = g.members[id], LinkedResize.classify(old: current[id] ?? m.frame, new: target) != .none else { continue }
-                m.ignoreUntil = Date().addingTimeInterval(0.5)          // the app's own notifications about OUR change
-                WindowMover.apply(target, to: m.element, bounds: g.bounds)
-            }
-        }
         let minSizes = g.members.compactMapValues(\.minSize)
-        var current = readActual()
-        var targets = LinkedResize.dragDivider(members: current, divider: divider, to: position, gap: g.gap, minSizes: minSizes)
-        place(targets, current: current)
+        // An absolute function of (the layout when grabbed, where the line is now): no drift, however slow the apps are.
+        let targets = LinkedResize.dragDivider(members: g.dragBaseline, divider: divider, to: position,
+                                               gap: g.gap, minSizes: minSizes)
+        applyDragTargets(targets, in: g)
+        g.lastDivider = (divider, position, Date())
+        g.quietUntil = Date().addingTimeInterval(2.5)                  // the apps' own reports of OUR changes are not user input
+        refreshDividers()
+        scheduleSettle(g)
+    }
 
-        var real = readActual()
-        // Reality check: a window that did not get as small as asked would now overlap its neighbour.
-        // Pull the line back to where the stubborn window actually is.
-        for _ in 0..<2 {
-            let beforeEdge = divider.before.compactMap { real[$0] }.map { divider.axis == .vertical ? $0.maxX : $0.maxY }.max() ?? 0
-            let afterEdge = divider.after.compactMap { real[$0] }.map { divider.axis == .vertical ? $0.minX : $0.minY }.min() ?? 0
-            guard beforeEdge + g.gap > afterEdge + 3 else { break }
-            current = real
-            targets = LinkedResize.dragDivider(members: real, divider: divider, to: afterEdge - g.gap / 2, gap: g.gap, minSizes: minSizes)
-            place(targets, current: current)
-            real = readActual()
+    /// Sets the windows that change, in an order that never makes two windows overlap on the way:
+    /// the window that shrinks goes first; and a window that shrinks is resized THEN moved, one that grows is moved THEN resized.
+    private func applyDragTargets(_ targets: [Int: CGRect], in g: Group) {
+        func area(_ r: CGRect) -> CGFloat { r.width * r.height }
+        let order = targets.sorted { a, b in
+            let da = area(a.value) - area(g.members[a.key]?.frame ?? a.value), db = area(b.value) - area(g.members[b.key]?.frame ?? b.value)
+            return da < db
         }
-        // Learn real minimums (only when a window stays too big for several drag events in a row, so a slow app is not blamed).
-        for id in divider.before + divider.after {
-            guard let m = g.members[id], let target = targets[id], let r = real[id] else { continue }
-            let outcome = MinSizeLearning.check(intended: target, real: r, refusals: m.refusals, current: m.minSize, confirmations: 6)
-            m.refusals = outcome.refusals
-            if outcome.learned, let min = outcome.minSize { m.minSize = min; learnedMin[m.pid] = min; log("learned minimum \(min) for window \(m.windowID)") }
+        for (id, target) in order {
+            guard let m = g.members[id] else { continue }
+            let cur = m.frame
+            let moved = abs(target.minX - cur.minX) > 0.5 || abs(target.minY - cur.minY) > 0.5
+            let resized = abs(target.width - cur.width) > 0.5 || abs(target.height - cur.height) > 0.5
+            guard moved || resized else { continue }
+            log("set window \(m.windowID): \(cur) -> \(target)")
+            m.ignoreUntil = Date().addingTimeInterval(0.5)
+            m.repairs = 0
+            if moved && resized {
+                if target.width < cur.width || target.height < cur.height {
+                    AX.setSize(m.element, target.size); AX.setPosition(m.element, target.origin)
+                } else {
+                    AX.setPosition(m.element, target.origin); AX.setSize(m.element, target.size)
+                }
+            } else if resized {
+                AX.setSize(m.element, target.size)
+            } else {
+                AX.setPosition(m.element, target.origin)
+            }
+            m.frame = target
         }
-        for (id, f) in real { g.members[id]?.frame = f }                 // the model follows reality
-        refreshDividers()                                                // so the line shows where the divider really is
     }
 
     private func dividerEnded() {
@@ -276,14 +293,17 @@ final class LinkedGroupController {
 
     private func handle(_ m: Member, in g: Group) {
         guard settings.linkedResizeEnabled, !settings.paused, let actual = AX.frame(m.element) else { return }
-        if Date() < m.ignoreUntil { return }                             // echo of our own change
+        if Date() < m.ignoreUntil || Date() < g.quietUntil { return }    // echo of our own change / we are driving the divider
 
         log("window \(m.windowID): model \(m.frame) actual \(actual) -> \(LinkedResize.classify(old: m.frame, new: actual))")
         switch LinkedResize.classify(old: m.frame, new: actual) {
         case .none:
             return
         case .moved:
-            remove(m, from: g)                                          // dragged away: it leaves the group
+            // Only "dragged away" if it no longer touches its neighbours (a late or odd report must not break the group).
+            var updated = g.members.mapValues(\.frame); updated[m.id] = actual
+            let stillLinked = LinkedResize.dividers(members: updated, gap: g.gap).contains { $0.before.contains(m.id) || $0.after.contains(m.id) }
+            if stillLinked { m.frame = actual; refreshDividers() } else { remove(m, from: g) }
         case .resized:
             let baseline = g.members.mapValues(\.frame)          // the last known-good, flush layout
             m.frame = actual
@@ -318,19 +338,70 @@ final class LinkedGroupController {
     /// back into line, so the divider stops there instead of one window overlapping another.
     private func verify(_ g: Group) {
         guard groups.contains(where: { $0 === g }) else { return }
-        var learned = false
+        var learned = false, pending = false
         for member in g.members.values {
             guard let real = AX.frame(member.element) else { continue }
-            let outcome = MinSizeLearning.check(intended: member.frame, real: real, refusals: member.refusals, current: member.minSize)
+            let intended = member.frame
+            log("verify window \(member.windowID): intended \(intended) real \(real) refusals \(member.refusals) repairs \(member.repairs)")
+            let tooBig = real.width > intended.width + 2 || real.height > intended.height + 2
+            let originOff = abs(real.minX - intended.minX) > 2 || abs(real.minY - intended.minY) > 2
+            let sizeOff = abs(real.width - intended.width) > 2 || abs(real.height - intended.height) > 2
+
+            // A window that is not where it should be has usually just LOST an update: many apps apply a size and a
+            // position as separate, late changes, and one can undo the other. Re-send what is missing, one change at
+            // a time, before suspecting the app of refusing. ("Too big" gets two repair rounds first.)
+            if (originOff || sizeOff) && member.repairs < (tooBig ? 2 : 6) {
+                member.repairs += 1
+                resend(member, intended: intended, real: real, originOff: originOff, sizeOff: sizeOff)
+                pending = true
+                continue
+            }
+            let outcome = MinSizeLearning.check(intended: intended, real: real, refusals: member.refusals, current: member.minSize)
             member.refusals = outcome.refusals
             if outcome.learned, let min = outcome.minSize {
                 member.minSize = min
                 learnedMin[member.pid] = min
+                member.frame = real                              // reapply() measures from reality for this window
                 learned = true
+            } else if outcome.refusals > 0 {
+                pending = true                                   // too big even after repairs: wait for the confirming reading
+            } else {
+                member.frame = real                              // settled (or we gave up repairing): reality is the truth
             }
-            if member.refusals == 0 { member.frame = real }      // reality wins once we have decided what it means
         }
-        if learned { followDrag(in: g); scheduleVerify(g) }      // re-apply with the new minimum, then check once more
+        if learned {
+            reapply(g)                                           // re-apply with the new minimum, then check once more
+            scheduleVerify(g)
+        } else if pending {
+            scheduleVerify(g)                                    // check again shortly (did the repair arrive?)
+        }
+        refreshDividers()                                        // the lines show where the windows REALLY are
+    }
+
+    /// Sends ONE of the missing changes (never both at once, which is what loses updates in the first place).
+    private func resend(_ m: Member, intended: CGRect, real: CGRect, originOff: Bool, sizeOff: Bool) {
+        m.ignoreUntil = Date().addingTimeInterval(0.5)
+        let shrinking = intended.width < real.width || intended.height < real.height
+        if originOff && sizeOff {
+            if shrinking { AX.setSize(m.element, intended.size) } else { AX.setPosition(m.element, intended.origin) }
+        } else if sizeOff {
+            AX.setSize(m.element, intended.size)
+        } else if originOff {
+            AX.setPosition(m.element, intended.origin)
+        }
+    }
+
+    /// Puts the group back in line after a minimum was learned: for a divider drag, drag it to the same wanted
+    /// position again (now clamped by the new minimum); otherwise redo the last edge drag.
+    private func reapply(_ g: Group) {
+        if let last = g.lastDivider, Date().timeIntervalSince(last.at) < 5 {
+            let base = g.dragBaseline.isEmpty ? g.members.mapValues(\.frame) : g.dragBaseline
+            let targets = LinkedResize.dragDivider(members: base, divider: last.divider, to: last.position,
+                                                   gap: g.gap, minSizes: g.members.compactMapValues(\.minSize))
+            applyDragTargets(targets, in: g)
+        } else {
+            followDrag(in: g)
+        }
     }
 
     private func scheduleVerify(_ g: Group) {

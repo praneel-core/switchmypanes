@@ -39,7 +39,10 @@ Free, local only: no accounts, no network calls, no analytics. Phase 1 of 3: see
   with a small grip appears between them (while you are working in one of those apps): that line means "these windows
   are linked". **Drag the line** and the windows on both sides resize together, so they stay flush (in a 2×2 grid the
   whole vertical or horizontal line moves; with three columns, the line between two columns). The line stops where a
-  window cannot get any smaller, so nothing overlaps; dragging back always works. A window leaves the group (and the line
+  window cannot get any smaller; dragging back always works. Some apps apply a resize a moment late, or drop half of it
+  (a new size OR a new position): Switchmypanes checks where the windows really ended up when you pause, re-sends what
+  is missing, and only then decides an app really has a minimum size, so a window can look a little off for up to a
+  second after you let go before it settles into place. A window leaves the group (and the line
   disappears) when you drag it away, snap it elsewhere, or close it. Resizing a window by its own edge also still
   pulls its neighbours along. Only windows placed through Snap Layouts or Snap Assist are linked, not ones lined up by
   hand. Toggle in Preferences.
@@ -95,7 +98,7 @@ snap shortcuts, and, while the overlay is open, Tab / arrows / Esc.
 **Linked resizing: no line appears, or it does not follow?** (No line after filling a layout means the group was not created.) Quit Switchmypanes from its menu, then run it from Terminal with logging:
 `SWITCHMYPANES_DEBUG=1 ~/Applications/Switchmypanes.app/Contents/MacOS/Switchmypanes`, reproduce the problem (fill a
 layout or pick a window in Snap Assist, then drag the divider) and send me the lines starting with `[linked]`. They show
-whether the group was created, whether the apps report resizes, and what was decided. `Switchmypanes --selftest-linked`
+whether the group was created, what was sent to each window while you dragged, and what each window really did afterwards (`verify` lines). `Switchmypanes --selftest-linked`
 runs a built-in check with two nearly invisible helper windows (about 15 seconds, bottom-right corner) and prints
 PASS/FAIL.
 
