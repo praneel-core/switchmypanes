@@ -18,6 +18,8 @@ final class LinkedGroupController {
         let element: AXUIElement
         var frame: CGRect
         var ignoreUntil = Date.distantPast      // our own changes echo back as notifications: ignore those briefly
+        var minSize: CGSize?                    // the REAL minimum, learned when the app refuses to get smaller
+        var refusals = 0                        // consecutive checks in which the app was bigger than asked
         init(id: Int, pid: pid_t, windowID: CGWindowID, element: AXUIElement, frame: CGRect) {
             self.id = id; self.pid = pid; self.windowID = windowID; self.element = element; self.frame = frame
         }
@@ -26,6 +28,9 @@ final class LinkedGroupController {
         var members: [Int: Member] = [:]
         let gap: CGFloat
         let bounds: CGRect                      // the display's usable area, for WindowMover's min-size handling
+        var lastDrag: (changed: Int, baseline: [Int: CGRect], userFrame: CGRect)?   // for re-checking after things settle
+        var settleWork: DispatchWorkItem?       // debounced: runs once the drag has calmed down
+        var verifyPending = false               // throttled: runs at most every 0.15 s while dragging
         init(gap: CGFloat, bounds: CGRect) { self.gap = gap; self.bounds = bounds }
     }
 
@@ -33,6 +38,7 @@ final class LinkedGroupController {
 
     private let settings: SettingsStore
     private var groups: [Group] = []
+    private var learnedMin: [pid_t: CGSize] = [:]      // an app's windows share their minimum, so remember it per app
     private var observers: [pid_t: AXObserver] = [:]
     private let notifications = [kAXResizedNotification, kAXMovedNotification, kAXUIElementDestroyedNotification]
 
@@ -55,8 +61,11 @@ final class LinkedGroupController {
             guard let self else { return }
             let group = Group(gap: gap, bounds: bounds)
             for (i, p) in placed.enumerated() {
-                guard let f = AX.frame(p.element) else { continue }
-                group.members[i] = Member(id: i, pid: p.pid, windowID: p.windowID, element: p.element, frame: f)
+                // A window that cannot be resized at all would only break the group's flush edges: leave it out.
+                guard let f = AX.frame(p.element), AX.isSettable(p.element, kAXSizeAttribute) else { continue }
+                let m = Member(id: i, pid: p.pid, windowID: p.windowID, element: p.element, frame: f)
+                m.minSize = self.learnedMin[p.pid]
+                group.members[i] = m
             }
             guard group.members.count >= 2 else { return }
             self.groups.append(group)
@@ -124,7 +133,7 @@ final class LinkedGroupController {
 
     private func handle(_ m: Member, in g: Group) {
         guard settings.linkedResizeEnabled, !settings.paused, let actual = AX.frame(m.element) else { return }
-        if Date() < m.ignoreUntil { m.frame = actual; return }          // echo of our own change
+        if Date() < m.ignoreUntil { return }                             // echo of our own change
 
         switch LinkedResize.classify(old: m.frame, new: actual) {
         case .none:
@@ -132,16 +141,65 @@ final class LinkedGroupController {
         case .moved:
             remove(m, from: g)                                          // dragged away: it leaves the group
         case .resized:
-            let current = g.members.mapValues(\.frame)
-            let result = LinkedResize.resolve(members: current, changed: m.id, newFrame: actual, gap: g.gap)
-            for (id, target) in result {
-                guard let member = g.members[id] else { continue }
-                let from = id == m.id ? actual : member.frame
-                if LinkedResize.classify(old: from, new: target) == .none { member.frame = target; continue }
+            let baseline = g.members.mapValues(\.frame)          // the last known-good, flush layout
+            m.frame = actual
+            g.lastDrag = (m.id, baseline, actual)
+            followDrag(in: g)
+            scheduleVerify(g)
+            scheduleSettle(g)
+        }
+    }
+
+    /// Computes where every window should be for the latest drag and applies it. The model keeps the INTENDED
+    /// frames; `verify` later compares them with reality.
+    private func followDrag(in g: Group) {
+        guard let drag = g.lastDrag else { return }
+        let minSizes = g.members.compactMapValues(\.minSize)
+        let result = LinkedResize.resolve(members: drag.baseline, changed: drag.changed, newFrame: drag.userFrame,
+                                          gap: g.gap, minSizes: minSizes)
+        for (id, target) in result {
+            guard let member = g.members[id] else { continue }
+            if LinkedResize.classify(old: member.frame, new: target) != .none {
                 member.ignoreUntil = Date().addingTimeInterval(0.3)
                 WindowMover.apply(target, to: member.element, bounds: g.bounds)
-                member.frame = AX.frame(member.element) ?? target       // what the app really did (it may refuse tiny sizes)
             }
+            member.frame = target
         }
+    }
+
+    /// Looks at where the windows REALLY are. An app that stays bigger than we asked, on two checks in a row (so a
+    /// merely slow app is not mistaken for a stubborn one), has a real minimum size: remember it and pull the group
+    /// back into line, so the divider stops there instead of one window overlapping another.
+    private func verify(_ g: Group) {
+        guard groups.contains(where: { $0 === g }) else { return }
+        var learned = false
+        for member in g.members.values {
+            guard let real = AX.frame(member.element) else { continue }
+            let outcome = MinSizeLearning.check(intended: member.frame, real: real, refusals: member.refusals, current: member.minSize)
+            member.refusals = outcome.refusals
+            if outcome.learned, let min = outcome.minSize {
+                member.minSize = min
+                learnedMin[member.pid] = min
+                learned = true
+            }
+            if member.refusals == 0 { member.frame = real }      // reality wins once we have decided what it means
+        }
+        if learned { followDrag(in: g); scheduleVerify(g) }      // re-apply with the new minimum, then check once more
+    }
+
+    private func scheduleVerify(_ g: Group) {
+        guard !g.verifyPending else { return }
+        g.verifyPending = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self, weak g] in
+            g?.verifyPending = false
+            if let self, let g { self.verify(g) }
+        }
+    }
+
+    private func scheduleSettle(_ g: Group) {
+        g.settleWork?.cancel()
+        let work = DispatchWorkItem { [weak self, weak g] in if let self, let g { self.verify(g) } }
+        g.settleWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45, execute: work)
     }
 }

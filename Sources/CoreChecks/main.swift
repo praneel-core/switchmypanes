@@ -529,6 +529,55 @@ do {
     r = L.resolve(members: m, changed: 0, newFrame: new)
     eq(r[0]!.width, 120, "dragged window cannot go below the minimum either"); eq(r[1]!.minX, 120, "neighbour follows the stopped divider")
 
+    // REAL minimum sizes (learned from apps that refused to shrink) stop the divider before anything overlaps
+    let flush: [Int: CGRect] = [0: CGRect(x: 0, y: 0, width: 500, height: 800), 1: CGRect(x: 500, y: 0, width: 700, height: 800)]
+    new = flush[0]!; new.size.width += 100                       // drag right: the right window (700 wide) cannot shrink
+    r = L.resolve(members: flush, changed: 0, newFrame: new, minSizes: [1: CGSize(width: 700, height: 100)])
+    eq(r[0]!, flush[0]!, "divider stops: the dragged window is pulled back"); eq(r[1]!, flush[1]!, "the stubborn window is not overlapped")
+    eq(r[0]!.maxX, r[1]!.minX, "still flush, so linking is intact")
+    new = flush[0]!; new.size.width -= 100                        // ...then drag back: the link still works
+    r = L.resolve(members: flush, changed: 0, newFrame: new, minSizes: [1: CGSize(width: 700, height: 100)])
+    eq(r[0]!.maxX, 400, "dragging back moves the divider"); eq(r[1]!.minX, 400, "and the stubborn window follows"); eq(r[1]!.maxX, 1200, "its outer edge stays")
+    // without the learned minimum the old assumption would have overlapped (documenting why it is needed)
+    new = flush[0]!; new.size.width += 100
+    check(L.resolve(members: flush, changed: 0, newFrame: new)[1]!.width == 600, "default minimum alone allows shrinking to 600")
+    // the dragged window's own real minimum
+    let wide: [Int: CGRect] = [0: CGRect(x: 0, y: 0, width: 600, height: 800), 1: CGRect(x: 600, y: 0, width: 600, height: 800)]
+    new = wide[0]!; new.size.width = 300
+    r = L.resolve(members: wide, changed: 0, newFrame: new, minSizes: [0: CGSize(width: 450, height: 100)])
+    eq(r[0]!.width, 450, "dragged window stops at ITS minimum"); eq(r[1]!.minX, 450, "neighbour follows the stopped divider")
+    // vertical: a stubborn window with a minimum HEIGHT
+    let stack: [Int: CGRect] = [0: CGRect(x: 0, y: 0, width: 1200, height: 300), 1: CGRect(x: 0, y: 300, width: 1200, height: 500)]
+    new = stack[0]!; new.size.height += 100
+    r = L.resolve(members: stack, changed: 0, newFrame: new, minSizes: [1: CGSize(width: 100, height: 500)])
+    eq(r[1]!, stack[1]!, "vertical divider stops at the neighbour's minimum height"); eq(r[0]!.maxY, r[1]!.minY, "still flush vertically")
+    // grid: one stubborn window stops the whole divider (all four share it)
+    m = zones(grid); new = m[0]!; new.size.width += 120
+    r = L.resolve(members: m, changed: 0, newFrame: new, minSizes: [3: CGSize(width: 600, height: 100)])
+    eq(r[0]!, m[0]!, "grid: one window at its minimum stops the whole divider"); eq(r[1]!, m[1]!, "top-right unchanged"); eq(r[2]!, m[2]!, "bottom-left unchanged")
+
+    // learning a real minimum: needs the refusal to persist (a slow app must not be mistaken for a stubborn one)
+    do {
+        let want = CGRect(x: 800, y: 0, width: 400, height: 800), big = CGRect(x: 600, y: 0, width: 600, height: 800)
+        var o = MinSizeLearning.check(intended: want, real: big, refusals: 0, current: nil)
+        check(!o.learned && o.refusals == 1 && o.minSize == nil, "first 'too big' reading: wait and see")
+        o = MinSizeLearning.check(intended: want, real: want, refusals: o.refusals, current: o.minSize)
+        check(!o.learned && o.refusals == 0, "the app caught up (it was just slow): nothing learned")
+        o = MinSizeLearning.check(intended: want, real: big, refusals: 0, current: nil)
+        o = MinSizeLearning.check(intended: want, real: big, refusals: o.refusals, current: o.minSize)
+        check(o.learned && o.minSize?.width == 600, "too big twice in a row: 600 wide is its real minimum")
+        check(o.minSize?.height == LinkedResize.defaultMinSize.height, "height keeps the default when only width was refused")
+        let tall = CGRect(x: 0, y: 0, width: 400, height: 700)
+        o = MinSizeLearning.check(intended: CGRect(x: 0, y: 0, width: 400, height: 300), real: tall, refusals: 1, current: CGSize(width: 500, height: 90))
+        check(o.learned && o.minSize == CGSize(width: 500, height: 700), "height learned, the known width is kept")
+        o = MinSizeLearning.check(intended: want, real: CGRect(x: 800, y: 0, width: 401, height: 801), refusals: 1, current: nil)
+        check(!o.learned && o.refusals == 0, "within 2 pt of the request counts as complying")
+        o = MinSizeLearning.check(intended: want, real: CGRect(x: 800, y: 0, width: 300, height: 800), refusals: 1, current: nil)
+        check(!o.learned && o.refusals == 0, "smaller than asked is not a refusal")
+        o = MinSizeLearning.check(intended: want, real: big, refusals: 1, current: CGSize(width: 900, height: 90))
+        eq(o.minSize?.width, 900, "a learned minimum never goes down")
+    }
+
     // a missing zone does not break anything; no-op returns the same frames
     var sparse = zones(grid); sparse.removeValue(forKey: 3)
     new = sparse[0]!; new.size.width += 30
