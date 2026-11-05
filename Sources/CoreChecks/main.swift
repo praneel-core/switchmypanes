@@ -621,6 +621,29 @@ do {
         eq(after.count, 1, "still exactly one divider after dragging"); eq(after[0].position, 700, "now at the new position")
     }
 
+    // ---- hover zones for revealing a divider
+    do {
+        let d = L.dividers(members: zones(halves))[0]                     // vertical line x = 600, y 0...800
+        let z = d.revealZone()
+        eq(z, CGRect(x: 586, y: 250, width: 28, height: 300), "reveal zone: the middle 300 points of an 800 point line, 14 either side")
+        check(z.contains(CGPoint(x: 600, y: 400)) && z.contains(CGPoint(x: 590, y: 300)), "hovering the middle reveals it")
+        check(!z.contains(CGPoint(x: 600, y: 50)) && !z.contains(CGPoint(x: 600, y: 760)), "near the ends does NOT (scrollbars stay free)")
+        check(!z.contains(CGPoint(x: 560, y: 400)) && !z.contains(CGPoint(x: 640, y: 400)), "away from the seam does not")
+        let k = d.keepZone()
+        check(k.contains(CGPoint(x: 600, y: 10)) && k.contains(CGPoint(x: 605, y: 795)), "once revealed it stays while you are anywhere along the line")
+        check(!k.contains(CGPoint(x: 640, y: 400)), "and goes when the cursor leaves the seam")
+        // short lines: at least 120 long, never beyond the line
+        let short = Divider(axis: .vertical, position: 300, start: 100, end: 300, before: [0], after: [1])
+        eq(short.revealZone().height, 120, "a 200 long line gets a 120 long zone"); eq(short.revealZone().minY, 140, "centred")
+        let tiny = Divider(axis: .vertical, position: 300, start: 100, end: 180, before: [0], after: [1])
+        eq(tiny.revealZone().minY, 100, "a very short line: clipped to the line"); eq(tiny.revealZone().maxY, 180, "(whole line)")
+        // horizontal dividers mirror it
+        let h = L.dividers(members: zones(grid)).first { $0.axis == .horizontal }!      // y = 400, x 0...1200
+        eq(h.revealZone(), CGRect(x: 450, y: 386, width: 300, height: 28), "horizontal: the middle 300 points")
+        check(!h.revealZone().contains(CGPoint(x: 50, y: 400)), "not near the screen edge")
+        check(h.keepZone().contains(CGPoint(x: 50, y: 400)), "but visible all along once revealed")
+    }
+
     // a missing zone does not break anything; no-op returns the same frames
     var sparse = zones(grid); sparse.removeValue(forKey: 3)
     new = sparse[0]!; new.size.width += 30

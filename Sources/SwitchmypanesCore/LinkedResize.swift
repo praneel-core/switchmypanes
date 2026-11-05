@@ -98,6 +98,32 @@ public struct Divider: Equatable {
     public var end: CGFloat
     public var before: [Int]          // windows left of / above the line
     public var after: [Int]           // windows right of / below it
+
+    public init(axis: Axis, position: CGFloat, start: CGFloat, end: CGFloat, before: [Int], after: [Int]) {
+        self.axis = axis; self.position = position; self.start = start; self.end = end
+        self.before = before; self.after = after
+    }
+}
+
+public extension Divider {
+    /// Where hovering REVEALS the divider: the middle of the line (40% of its length, but between 120 and 300 points
+    /// long, never beyond the line itself) and `across` points to either side of it. Keeping the trigger to the middle
+    /// leaves the rest of the seam (scrollbars, resize corners) untouched until you actually go for the divider.
+    func revealZone(across: CGFloat = 14) -> CGRect {
+        let length = end - start, mid = (start + end) / 2
+        let half = min(max(length * 0.2, 60), 150)
+        let lo = max(start, mid - half), hi = min(end, mid + half)
+        return axis == .vertical
+            ? CGRect(x: position - across, y: lo, width: across * 2, height: hi - lo)
+            : CGRect(x: lo, y: position - across, width: hi - lo, height: across * 2)
+    }
+
+    /// While the cursor stays inside this (the whole line plus a margin) an already revealed divider stays visible.
+    func keepZone(across: CGFloat = 14, margin: CGFloat = 6) -> CGRect {
+        axis == .vertical
+            ? CGRect(x: position - across, y: start - margin, width: across * 2, height: end - start + margin * 2)
+            : CGRect(x: start - margin, y: position - across, width: end - start + margin * 2, height: across * 2)
+    }
 }
 
 public extension LinkedResize {

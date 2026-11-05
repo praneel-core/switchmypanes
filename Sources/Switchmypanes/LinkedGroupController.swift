@@ -56,6 +56,10 @@ final class LinkedGroupController {
     private var mouseMonitors: [Any] = []
     /// Diagnostics: show the lines even when the group's apps are not in front.
     var forceShowDividers = false
+    /// Diagnostics: feed the overlay a cursor position (top-left coordinates); how many lines are currently revealed.
+    func debugHover(at p: CGPoint) { overlay.cursorMoved(at: p) }
+    var debugRevealedLines: Int { overlay.debugRevealedCount }
+    var debugDividerExtent: (position: CGFloat, start: CGFloat, end: CGFloat)? { shown.first.map { ($0.divider.position, $0.divider.start, $0.divider.end) } }
     private let overlay = DividerOverlay()
     private var shown: [(group: Group, divider: Divider)] = []
     private var dragging: (group: Group, divider: Divider)?

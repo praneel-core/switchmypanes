@@ -35,9 +35,11 @@ Free, local only: no accounts, no network calls, no analytics. Phase 1 of 3: see
   it moves there immediately. Space skips an area, Esc stops (windows already placed stay). Note that Option+Z
   normally types “Ω”; turn this off in Preferences if you need it.
 - **Linked resizing, with a divider line**: windows you place with **Snap Layouts**, and the pair you make with
-  **Snap Assist** (snap one window to a half, pick another for the empty half), are linked. A thin accent-coloured line
-  with a small grip appears between them (while you are working in one of those apps): that line means "these windows
-  are linked". **Drag the line** and the windows on both sides resize together, so they stay flush (in a 2×2 grid the
+  **Snap Assist** (snap one window to a half, pick another for the empty half), are linked. Move the cursor to the
+  **middle of the seam** between them: a thin accent-coloured line with a small grip fades in, meaning "these windows
+  are linked". It is hidden the rest of the time, and while hidden it never gets in the way of clicks. It stays while
+  the cursor is anywhere along the line (or you are dragging it) and fades out a moment after the cursor leaves.
+  (Hovering near the ends of the seam does not reveal it, so scrollbars stay untouched.) **Drag the line** and the windows on both sides resize together, so they stay flush (in a 2×2 grid the
   whole vertical or horizontal line moves; with three columns, the line between two columns). The line stops where a
   window cannot get any smaller; dragging back always works. Some apps apply a resize a moment late, or drop half of it
   (a new size OR a new position): Switchmypanes checks where the windows really ended up when you pause, re-sends what
@@ -95,7 +97,7 @@ snap shortcuts, and, while the overlay is open, Tab / arrows / Esc.
 
 ## Diagnostics
 
-**Linked resizing: no line appears, or it does not follow?** (No line after filling a layout means the group was not created.) Quit Switchmypanes from its menu, then run it from Terminal with logging:
+**Linked resizing: no line appears, or it does not follow?** (Hover the middle of the seam: no line then means the group was not created.) Quit Switchmypanes from its menu, then run it from Terminal with logging:
 `SWITCHMYPANES_DEBUG=1 ~/Applications/Switchmypanes.app/Contents/MacOS/Switchmypanes`, reproduce the problem (fill a
 layout or pick a window in Snap Assist, then drag the divider) and send me the lines starting with `[linked]`. They show
 whether the group was created, what was sent to each window while you dragged, and what each window really did afterwards (`verify` lines). `Switchmypanes --selftest-linked`
@@ -141,5 +143,5 @@ No automated tests can click macOS permission dialogs; see the manual test check
 20. Preferences: open it (it should fit your screen and scroll). Click the Snap Layouts shortcut, press ⌃⌥B: it changes; press Option+Z: it should now do nothing, ⌃⌥B opens the picker. Try ⌘Tab for the switcher (refused), ⌥← for snapping (refused). Record ⌃⌥Tab for the switcher: hold both, Tab cycles, releasing EITHER key commits. Use the reset arrows. While recording, pressing the current shortcut must NOT trigger it.
 21. Open at login: turn it on from the installed copy. If macOS asks, approve it in System Settings → General → Login Items; log out and in (or restart) and check that the menu bar icon is back. Turn it off again to test that too.
 22. Exclusions: in Preferences → Excluded apps, add Safari with only "Hide from switcher" ticked: its windows disappear from Option+Tab but still snap. Untick that and tick "Never snap": Control+Option+Left, dragging to an edge, and Snap Assist/Layouts all ignore Safari's windows. While IN an excluded app, Option+Tab should go to your most recent other window straight away. Remove the entry with the minus button: everything returns.
-23. Linked resize: Option+Z, pick "Halves", place two windows: a coloured line with a grip should appear between them. Drag the LINE: both windows should resize together. Try "Grid 2 × 2" (dragging a vertical divider should move all four), "Three columns" (only the two beside the divider), and "Main + two stacked". Drag a window by its title bar away: it should leave the group and the others stop following. Try dragging the divider far, towards an app with a large minimum width (e.g. Calculator, System Settings): the divider should stop and nothing should overlap; then drag back: the link must still work. Same for Snap Assist: snap a window Left (Control+Option+Left), pick another for the right half, then drag the divider: both should move together; snapping either window again with a shortcut should release the link. Tell me which apps lag or refuse (some apps resize slowly).
+23. Linked resize: Option+Z, pick "Halves", place two windows. No line should be visible; move the cursor to the middle of the seam between them: a coloured line with a grip fades in. Drag the LINE: both windows should resize together. Move the cursor away: it fades out after a moment. Hovering near the top or bottom end of the seam should not show it. Try "Grid 2 × 2" (dragging a vertical divider should move all four), "Three columns" (only the two beside the divider), and "Main + two stacked". Drag a window by its title bar away: it should leave the group and the others stop following. Try dragging the divider far, towards an app with a large minimum width (e.g. Calculator, System Settings): the divider should stop and nothing should overlap; then drag back: the link must still work. Same for Snap Assist: snap a window Left (Control+Option+Left), pick another for the right half, then drag the divider: both should move together; snapping either window again with a shortcut should release the link. Tell me which apps lag or refuse (some apps resize slowly).
 24. Menu bar: Pause stops all shortcuts; Resume restores; Quit removes the icon.

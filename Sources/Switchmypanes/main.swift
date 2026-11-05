@@ -76,13 +76,21 @@ if CommandLine.arguments.contains("--selftest-linked") {
             try? p.run(); return p
         }
         func axWindow(of p: Process) -> AXUIElement? { AX.windows(of: AX.app(pid: p.processIdentifier)).first }
+        /// A freshly built binary can take a few seconds to start its helper processes: wait for the window, up to 10 s.
+        func waitFor(_ p: Process) -> AXUIElement? {
+            let deadline = Date().addingTimeInterval(10)
+            while Date() < deadline {
+                if let w = axWindow(of: p) { spin(0.3); return w }
+                spin(0.25)
+            }
+            return nil
+        }
 
         @MainActor func scenario(_ name: String, notifications: Bool) -> Bool {
             line("\n== \(name)")
             let pa = host("selftest-A"), pb = host("selftest-B")
             defer { pa.terminate(); pb.terminate() }
-            spin(1.8)
-            guard let a = axWindow(of: pa), let b = axWindow(of: pb), let ida = ids.windowID(of: a), let idb = ids.windowID(of: b) else {
+            guard let a = waitFor(pa), let b = waitFor(pb), let ida = ids.windowID(of: a), let idb = ids.windowID(of: b) else {
                 line("FAIL: could not reach the helper windows through Accessibility"); return false
             }
             let controller = LinkedGroupController(settings: SettingsStore.shared)
@@ -122,8 +130,7 @@ if CommandLine.arguments.contains("--selftest-linked") {
             line("\n== dragging the visible divider; the right window refuses to get narrower than 250")
             let pa = host("selftest-A"), pb = host("selftest-B", minWidth: 250)
             defer { pa.terminate(); pb.terminate() }
-            spin(1.8)
-            guard let a = axWindow(of: pa), let b = axWindow(of: pb), let ida = ids.windowID(of: a), let idb = ids.windowID(of: b) else {
+            guard let a = waitFor(pa), let b = waitFor(pb), let ida = ids.windowID(of: a), let idb = ids.windowID(of: b) else {
                 line("FAIL: could not reach the helper windows through Accessibility"); return false
             }
             let controller = LinkedGroupController(settings: SettingsStore.shared)
@@ -170,8 +177,7 @@ if CommandLine.arguments.contains("--selftest-linked") {
             line("\n== dragging the divider with slow apps (they apply resizes ~90 ms late), right and then left")
             let pa = host("selftest-A", lagMs: 90), pb = host("selftest-B", lagMs: 90)
             defer { pa.terminate(); pb.terminate() }
-            spin(1.8)
-            guard let a = axWindow(of: pa), let b = axWindow(of: pb), let ida = ids.windowID(of: a), let idb = ids.windowID(of: b) else {
+            guard let a = waitFor(pa), let b = waitFor(pb), let ida = ids.windowID(of: a), let idb = ids.windowID(of: b) else {
                 line("FAIL: could not reach the helper windows through Accessibility"); return false
             }
             let controller = LinkedGroupController(settings: SettingsStore.shared)
@@ -207,11 +213,49 @@ if CommandLine.arguments.contains("--selftest-linked") {
             return ok
         }
         let only = CommandLine.arguments.first { $0.hasPrefix("--only=") }.map { String($0.dropFirst(7)) }
+                @MainActor func hoverScenario() -> Bool {
+            line("\n== the divider line is hidden until you hover the middle of the seam")
+            let pa = host("selftest-A"), pb = host("selftest-B")
+            defer { pa.terminate(); pb.terminate() }
+            guard let a = waitFor(pa), let b = waitFor(pb), let ida = ids.windowID(of: a), let idb = ids.windowID(of: b) else {
+                line("FAIL: could not reach the helper windows through Accessibility"); return false
+            }
+            let controller = LinkedGroupController(settings: SettingsStore.shared)
+            controller.forceShowDividers = true            // (only skips "is one of these apps in front?")
+            WindowMover.apply(CGRect(x: base.minX, y: base.minY, width: 300, height: 160), to: a, bounds: visible)
+            WindowMover.apply(CGRect(x: base.minX + 300, y: base.minY, width: 300, height: 160), to: b, bounds: visible)
+            spin(0.4)
+            controller.register([.init(pid: pa.processIdentifier, windowID: ida, element: a), .init(pid: pb.processIdentifier, windowID: idb, element: b)], gap: 0, bounds: visible)
+            spin(1.0)
+            guard let ext = controller.debugDividerExtent else { line("FAIL: no divider was created"); return false }
+            let mid = (ext.start + ext.end) / 2
+            var ok = true
+            func check(_ cond: Bool, _ pass: String, _ fail: String) { line(cond ? "PASS: \(pass)" : "FAIL: \(fail)"); ok = ok && cond }
+
+            check(controller.debugRevealedLines == 0, "hidden by default", "the line is showing without hovering")
+            controller.debugHover(at: CGPoint(x: ext.position + 40, y: mid)); spin(0.1)
+            check(controller.debugRevealedLines == 0, "hovering NEXT to the seam does nothing", "revealed by a cursor away from the seam")
+            controller.debugHover(at: CGPoint(x: ext.position, y: ext.start + 3)); spin(0.1)
+            check(controller.debugRevealedLines == 0, "hovering the very end of the seam (scrollbar area) does nothing", "revealed near the end of the seam")
+            controller.debugHover(at: CGPoint(x: ext.position + 2, y: mid)); spin(0.1)
+            check(controller.debugRevealedLines == 1, "hovering the middle reveals the line", "the line did not appear when hovering the middle")
+            controller.debugHover(at: CGPoint(x: ext.position, y: ext.start + 3)); spin(0.6)
+            check(controller.debugRevealedLines == 1, "it stays while the cursor is anywhere along the line", "it vanished while the cursor was still on the line")
+            controller.debugHover(at: CGPoint(x: ext.position + 120, y: mid)); spin(0.15)
+            check(controller.debugRevealedLines == 1, "it does not vanish instantly when the cursor leaves", "it vanished instantly (no grace period)")
+            spin(0.5)
+            check(controller.debugRevealedLines == 0, "it fades out shortly after the cursor leaves", "it stayed visible after the cursor left")
+            controller.debugHover(at: CGPoint(x: ext.position, y: mid)); spin(0.1)
+            check(controller.debugRevealedLines == 1, "and comes back when you return to the middle", "it did not come back")
+            controller.removeAll()
+            return ok
+        }
         let one = (only == nil || only == "1") ? scenario("separate processes, Accessibility notifications", notifications: true) : true
         let two = (only == nil || only == "2") ? scenario("separate processes, mouse-drag polling only (no notifications)", notifications: false) : true
         let three = (only == nil || only == "3") ? dividerScenario() : true
         let four = (only == nil || only == "4") ? laggyScenario() : true
-        allPassed = one && two && three && four
+        let five = (only == nil || only == "5") ? hoverScenario() : true
+        allPassed = one && two && three && four && five
         line("\n" + (allPassed ? "ALL PASSED" : "SOMETHING FAILED"))
     }
     exit(allPassed ? 0 : 1)

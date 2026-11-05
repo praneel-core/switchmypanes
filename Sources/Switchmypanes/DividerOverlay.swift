@@ -77,23 +77,51 @@ final class DividerPanel: NSPanel {
         animationBehavior = .none
         // No .canJoinAllSpaces: the divider stays on the desktop where the windows are.
         collectionBehavior = [.fullScreenAuxiliary, .ignoresCycle]
+        acceptsMouseMovedEvents = true        // so a revealed divider keeps seeing the cursor, and can tell when you leave
+        alphaValue = 0                        // hidden until you hover the middle of the seam...
+        ignoresMouseEvents = true             // ...and then it must not get in the way of clicks on the windows
         contentView = dividerView
+    }
+
+    func setRevealed(_ revealed: Bool) {
+        ignoresMouseEvents = !revealed
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = revealed ? 0.12 : 0.2
+            animator().alphaValue = revealed ? 1 : 0
+        }
     }
 }
 
-/// Keeps one panel per divider, positioned over the gap between the windows.
+/// Keeps one panel per divider, positioned over the gap between the windows. A divider is invisible (and click-through)
+/// until the cursor goes to the MIDDLE of the seam; it then fades in, stays while the cursor is near the line or while
+/// you drag it, and fades out shortly after the cursor leaves.
 @MainActor
 final class DividerOverlay {
     private var panels: [DividerPanel] = []
+    private var dividers: [Divider] = []
+    private var revealed: [Bool] = []
+    private var hideWork: [Int: DispatchWorkItem] = [:]
+    private var draggingIndex: Int?
+    private var monitors: [Any] = []
     var onBegin: (Int) -> Void = { _ in }
     var onMove: (Int, CGFloat) -> Void = { _, _ in }
     var onEnd: () -> Void = {}
     private let hitWidth: CGFloat = 12
+    private let hideDelay: TimeInterval = 0.35
+
+    /// Diagnostics: show the lines all the time.
+    var alwaysVisible = false
+    var debugRevealedCount: Int { revealed.filter { $0 }.count }
 
     /// Shows exactly these dividers (reusing panels so a divider being dragged does not flicker).
-    func show(_ dividers: [Divider]) {
-        while panels.count > dividers.count { panels.removeLast().orderOut(nil) }
-        for (i, d) in dividers.enumerated() {
+    func show(_ new: [Divider]) {
+        if new.count != dividers.count {
+            hideWork.values.forEach { $0.cancel() }; hideWork.removeAll()
+            revealed = Array(repeating: alwaysVisible, count: new.count)
+        }
+        dividers = new
+        while panels.count > new.count { panels.removeLast().orderOut(nil) }
+        for (i, d) in new.enumerated() {
             let panel: DividerPanel
             if i < panels.count { panel = panels[i] } else {
                 panel = DividerPanel(divider: d, converter: { DisplayProvider.converter })
@@ -101,9 +129,9 @@ final class DividerOverlay {
             }
             let view = panel.dividerView
             view.divider = d
-            view.onBegin = { [weak self] in self?.onBegin(i) }
+            view.onBegin = { [weak self] in self?.began(i) }
             view.onMove = { [weak self] pos in self?.onMove(i, pos) }
-            view.onEnd = { [weak self] in self?.onEnd() }
+            view.onEnd = { [weak self] in self?.ended() }
             // Top-left coordinates: the line plus a few points either side, so it is easy to grab.
             let rect: CGRect = d.axis == .vertical
                 ? CGRect(x: d.position - hitWidth / 2, y: d.start, width: hitWidth, height: d.end - d.start)
@@ -111,9 +139,71 @@ final class DividerOverlay {
             panel.setFrame(DisplayProvider.converter.flip(rect), display: true)
             view.needsDisplay = true
             panel.orderFrontRegardless()
+            if alwaysVisible && !revealed[i] { revealed[i] = true; panel.setRevealed(true) }
+        }
+        updateMonitors()
+    }
+
+    func hide() { panels.forEach { $0.setRevealed(false) }; revealed = revealed.map { _ in false } }
+
+    func removeAll() {
+        hideWork.values.forEach { $0.cancel() }; hideWork.removeAll()
+        panels.forEach { $0.orderOut(nil) }
+        panels.removeAll(); dividers = []; revealed = []; draggingIndex = nil
+        updateMonitors()
+    }
+
+    // MARK: hover
+
+    private func began(_ i: Int) { draggingIndex = i; cancelHide(i); onBegin(i) }
+    private func ended() { draggingIndex = nil; onEnd(); cursorMoved() }
+
+    /// Watches the cursor only while there are dividers. A global monitor sees the cursor over other apps' windows
+    /// (where a hidden, click-through divider lives); a local one sees it over our own revealed panel.
+    private func updateMonitors() {
+        if dividers.isEmpty {
+            monitors.forEach { NSEvent.removeMonitor($0) }; monitors.removeAll()
+        } else if monitors.isEmpty {
+            if let g = NSEvent.addGlobalMonitorForEvents(matching: .mouseMoved, handler: { [weak self] _ in
+                MainActor.assumeIsolated { self?.cursorMoved() }
+            }) { monitors.append(g) }
+            if let l = NSEvent.addLocalMonitorForEvents(matching: .mouseMoved, handler: { [weak self] e in
+                MainActor.assumeIsolated { self?.cursorMoved() }
+                return e
+            }) { monitors.append(l) }
         }
     }
 
-    func hide() { panels.forEach { $0.orderOut(nil) } }
-    func removeAll() { panels.forEach { $0.orderOut(nil) }; panels.removeAll() }
+    /// `at` (top-left coordinates) lets tests feed a cursor position without moving the real cursor.
+    func cursorMoved(at point: CGPoint? = nil) {
+        guard !alwaysVisible else { return }
+        let p = point ?? DisplayProvider.converter.flip(NSEvent.mouseLocation)
+        for (i, d) in dividers.enumerated() where i < panels.count && i != draggingIndex {
+            if revealed[i] {
+                if d.keepZone().contains(p) { cancelHide(i) } else { scheduleHide(i) }
+            } else if d.revealZone().contains(p) {
+                reveal(i)
+            }
+        }
+    }
+
+    private func reveal(_ i: Int) {
+        cancelHide(i)
+        revealed[i] = true
+        panels[i].setRevealed(true)
+    }
+
+    private func scheduleHide(_ i: Int) {
+        guard hideWork[i] == nil else { return }
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, i < self.panels.count, self.draggingIndex != i else { return }
+            self.hideWork[i] = nil
+            self.revealed[i] = false
+            self.panels[i].setRevealed(false)
+        }
+        hideWork[i] = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + hideDelay, execute: work)
+    }
+
+    private func cancelHide(_ i: Int) { hideWork[i]?.cancel(); hideWork[i] = nil }
 }
