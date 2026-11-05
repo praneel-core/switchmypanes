@@ -11,6 +11,8 @@ final class SnapController {
     private let ids: WindowIDProvider
     private var restore = RestoreMemory<WindowKey>()
 
+    /// Called just before we move a window ourselves (so a linked group can let go of it).
+    var onWillMoveWindow: (pid_t, CGWindowID?) -> Void = { _, _ in }
     /// Called at the start of every snap attempt (lets Snap Assist close itself / cancel a pending offer).
     var onBeforeSnap: () -> Void = {}
     /// Called after a window was snapped to a zone: (zone, display, pid, window id if known, the frame it was given).
@@ -40,6 +42,7 @@ final class SnapController {
 
         let wid = ids.windowID(of: window).map { Int($0) } ?? Int(truncatingIfNeeded: CFHash(window))
         let k = WindowKey(pid: app.processIdentifier, id: wid)
+        if action != .none { onWillMoveWindow(app.processIdentifier, ids.windowID(of: window)) }
 
         switch action {
         case .none:
@@ -66,6 +69,7 @@ final class SnapController {
     /// Put a window into a frame chosen by a picker or a drag, remembering where it was BEFORE
     /// so that "Down" (restore) puts it back there.
     func place(window: AXUIElement, pid: pid_t, target: CGRect, on display: DisplayInfo, preFrame: CGRect) {
+        onWillMoveWindow(pid, ids.windowID(of: window))
         let wid = ids.windowID(of: window).map { Int($0) } ?? Int(truncatingIfNeeded: CFHash(window))
         restore.willSnap(WindowKey(pid: pid, id: wid), currentFrame: preFrame, wasSnapped: false)
         WindowMover.apply(target, to: window, bounds: display.visibleFrame)

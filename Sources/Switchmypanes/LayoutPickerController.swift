@@ -34,6 +34,9 @@ final class LayoutPickerController {
     private var screen: NSScreen?
     private var display: DisplayInfo?
     private var outsideClickMonitor: Any?
+    private var placed: [LinkedGroupController.Placed] = []
+    /// Called when a layout session ends with at least two windows placed (placed windows, gap, usable screen area).
+    var onGroupPlaced: ([LinkedGroupController.Placed], CGFloat, CGRect) -> Void = { _, _, _ in }
     private var watchdog: Timer?
     private var startedAt = Date()
 
@@ -58,7 +61,7 @@ final class LayoutPickerController {
         let id = DisplayProvider.displayID(of: scr)
         guard let d = DisplayProvider.layout().displays.first(where: { $0.id == id }) else { return }
 
-        screen = scr; display = d; available = list; chosen = nil; zoneIndex = 0
+        screen = scr; display = d; available = list; chosen = nil; zoneIndex = 0; placed = []
         layoutSelection = SwitcherSelection(count: layouts.count); layoutSelection.select(0)   // start on the first layout, not the second
         stage = .choosingLayout
         isActive = true
@@ -109,6 +112,10 @@ final class LayoutPickerController {
 
     /// Always safe to call; tears everything down.
     func cancel() {
+        let finished = isActive ? placed : []
+        let finishedDisplay = display
+        placed = []
+        defer { if finished.count >= 2, let d = finishedDisplay { onGroupPlaced(finished, CGFloat(settings.gap), d.visibleFrame) } }
         watchdog?.invalidate(); watchdog = nil
         if let m = outsideClickMonitor { NSEvent.removeMonitor(m); outsideClickMonitor = nil }
         thumbnails.cancel()
@@ -146,6 +153,7 @@ final class LayoutPickerController {
     private func place(_ w: WindowInfo, into target: CGRect, display: DisplayInfo) {
         guard let ax = finder.find(pid: w.pid, windowID: w.id, frame: w.frame, title: w.title) else { return }
         snapper.place(window: ax, pid: w.pid, target: target, on: display, preFrame: w.frame)
+        placed.append(.init(pid: w.pid, windowID: w.id, element: ax))
         activator.activate(w)          // bring it to the front so placed windows are not hidden behind others
         inventory.markUsed(w.id)
     }

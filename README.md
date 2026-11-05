@@ -34,6 +34,11 @@ Free, local only: no accounts, no network calls, no analytics. Phase 1 of 3: see
   arrow keys + Return, the digits 1–9, or the mouse. Then, for each area in turn (outlined on screen), pick a window;
   it moves there immediately. Space skips an area, Esc stops (windows already placed stay). Note that Option+Z
   normally types “Ω”; turn this off in Preferences if you need it.
+- **Linked resizing**: windows you place with **Snap Layouts** stay linked. Drag the divider between two of them and
+  the windows touching that divider follow, so the group stays flush (in a 2×2 grid the whole vertical or horizontal
+  divider moves; with three columns only the two next to the divider). A window leaves the group when you drag it
+  away, snap it, or close it. Windows stop at a minimum size instead of overlapping. Only Snap Layouts groups are
+  linked: windows you snapped by hand are not. Toggle in Preferences.
 - **Snap Assist**: after a window is snapped to the left or right half (keyboard or drag), thumbnails of your other
   windows appear over the empty half. Click one, or use the arrows + Return, and it fills the space. Esc, a click
   elsewhere, or any other key closes it (and that key then does its normal job, so chaining snaps works).
@@ -122,4 +127,5 @@ No automated tests can click macOS permission dialogs; see the manual test check
 20. Preferences: open it (it should fit your screen and scroll). Click the Snap Layouts shortcut, press ⌃⌥B: it changes; press Option+Z: it should now do nothing, ⌃⌥B opens the picker. Try ⌘Tab for the switcher (refused), ⌥← for snapping (refused). Record ⌃⌥Tab for the switcher: hold both, Tab cycles, releasing EITHER key commits. Use the reset arrows. While recording, pressing the current shortcut must NOT trigger it.
 21. Open at login: turn it on from the installed copy. If macOS asks, approve it in System Settings → General → Login Items; log out and in (or restart) and check that the menu bar icon is back. Turn it off again to test that too.
 22. Exclusions: in Preferences → Excluded apps, add Safari with only "Hide from switcher" ticked: its windows disappear from Option+Tab but still snap. Untick that and tick "Never snap": Control+Option+Left, dragging to an edge, and Snap Assist/Layouts all ignore Safari's windows. While IN an excluded app, Option+Tab should go to your most recent other window straight away. Remove the entry with the minus button: everything returns.
-23. Menu bar: Pause stops all shortcuts; Resume restores; Quit removes the icon.
+23. Linked resize: Option+Z, pick "Halves", place two windows. Drag the divider (the shared edge) of one: the other should follow live. Try "Grid 2 × 2" (dragging a vertical divider should move all four), "Three columns" (only the two beside the divider), and "Main + two stacked". Drag a window by its title bar away: it should leave the group and the others stop following. Try dragging the divider far: windows should stop at a minimum size. Tell me which apps lag or refuse (some apps resize slowly).
+24. Menu bar: Pause stops all shortcuts; Resume restores; Quit removes the icon.

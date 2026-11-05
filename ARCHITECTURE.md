@@ -11,6 +11,7 @@ Sources/
     Geometry.swift              coordinate conversion, DisplayInfo/DisplayLayout (multi-display)
     SnapEngine.swift            zone frames, zone detection, Win+Arrow state machine, RestoreMemory
     Switcher.swift              MRUList, SwitcherSelection (the "second window first" rule)
+    LinkedResize.swift          shared-divider resize geometry (which windows follow, minimum sizes, gaps)
     SnapLayout.swift            the nine Snap Layouts presets + gap-aware zone frames
     ShortcutRules.swift         shortcut display names + ShortcutValidator (which combinations are allowed)
     AppExclusions.swift         per-app exclusion rules (switcher / snapping scopes) + shared bundle-ID matching
@@ -32,6 +33,7 @@ Sources/
     WindowActivator.swift              raise + focus a window
     SnapController.swift, WindowMover.swift           keyboard snapping; place() is shared by drag + layouts
     DragSnapController.swift, ZonePreviewOverlay.swift  drag-to-edge with preview
+    LinkedGroupController.swift                        linked resizing of Snap Layouts groups (AX observers)
     SnapAssistController.swift                         Snap Assist (empty half after a half-snap)
     LayoutPickerController.swift, LayoutChoicePanel.swift  Snap Layouts (Option+Z), reuses SwitcherPanel for the window step
     DisplayProvider.swift              the ONLY NSScreen -> top-left coordinate conversion
@@ -124,7 +126,8 @@ Accessibility API is top-left; all logic uses top-left and converts once, in `Di
 
 ## Phase 3 plan
 
-- Snap groups and shared-edge resizing (needs an AX observer for move/resize notifications).
+- DONE (Snap Layouts groups only): linked resizing. `LinkedResize` (Core, tested) computes the new frames when a shared divider is dragged (flood fill along the divider, gap-preserving, minimum-size stop); `LinkedGroupController` registers the groups `LayoutPickerController` creates, watches members with public AX observers (resized / moved / destroyed), and applies the result with `WindowMover`. A window leaves its group when dragged away, snapped (`SnapController.onWillMoveWindow`) or closed. NOT built: raising a group together, groups from manual snaps / Snap Assist.
+- Remaining: groups from other sources (manual snaps, Snap Assist) if wanted.
 - DONE: per-app exclusions. `AppExclusion` (Core, tested) has two scopes; `WindowInventory.snapshot(for:)` filters the switcher and the Snap Assist / Snap Layouts lists, and `SnapController` / `DragSnapController` check before moving a window. Stored as JSON in UserDefaults.
 - Task View-style overview.
 - Live-updating thumbnails.

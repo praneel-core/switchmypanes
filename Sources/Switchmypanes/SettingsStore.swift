@@ -28,6 +28,8 @@ final class SettingsStore: ObservableObject {
     @Published var dragSnapEnabled: Bool { didSet { d.set(dragSnapEnabled, forKey: "dragSnapEnabled") } }
     /// Modifier combination for snapping (Control+Option by default). Stored as the raw bit set.
     @Published var snapModifiers: ShortcutModifiers { didSet { d.set(snapModifiers.rawValue, forKey: "snapModifiers") } }
+    /// Windows placed together by Snap Layouts resize together when you drag the divider between them.
+    @Published var linkedResizeEnabled: Bool { didSet { d.set(linkedResizeEnabled, forKey: "linkedResizeEnabled") } }
     /// Apps to leave alone: hidden from the switcher and/or never moved by snapping (per app).
     @Published var appExclusions: [AppExclusion] { didSet { d.set(AppExclusions.encode(appExclusions), forKey: "appExclusions") } }
     /// Modifier(s) held for the window switcher (then Tab). Option by default.
@@ -45,7 +47,7 @@ final class SettingsStore: ObservableObject {
     @Published var paused = false
 
     private init() {
-        d.register(defaults: ["switcherEnabled": true, "snapEnabled": true, "dragSnapEnabled": true, "layoutsEnabled": true, "snapAssistEnabled": true, "includeOtherDesktops": true, "includeFullScreen": true, "includeMinimized": true, "keepPreviewsFresh": true, "previewExcludedApps": PreviewPolicy.defaultExcludedApps, "gap": 0.0,
+        d.register(defaults: ["switcherEnabled": true, "snapEnabled": true, "dragSnapEnabled": true, "layoutsEnabled": true, "snapAssistEnabled": true, "includeOtherDesktops": true, "includeFullScreen": true, "includeMinimized": true, "keepPreviewsFresh": true, "linkedResizeEnabled": true, "previewExcludedApps": PreviewPolicy.defaultExcludedApps, "gap": 0.0,
                               "snapModifiers": ShortcutModifiers([.control, .option]).rawValue,
                               "switcherModifier": ShortcutModifiers.option.rawValue,
                               "layoutsModifier": ShortcutModifiers.option.rawValue, "layoutsKeyCode": 6, "layoutsKeyLabel": "Z"])
@@ -61,6 +63,7 @@ final class SettingsStore: ObservableObject {
         previewExcludedApps = d.stringArray(forKey: "previewExcludedApps") ?? PreviewPolicy.defaultExcludedApps
         snapModifiers = ShortcutModifiers(rawValue: d.integer(forKey: "snapModifiers"))
         gap = d.double(forKey: "gap")
+        linkedResizeEnabled = d.bool(forKey: "linkedResizeEnabled")
         appExclusions = AppExclusions.decode(d.data(forKey: "appExclusions"))
         switcherModifier = ShortcutModifiers(rawValue: d.integer(forKey: "switcherModifier"))
         layoutsModifier = ShortcutModifiers(rawValue: d.integer(forKey: "layoutsModifier"))
@@ -80,7 +83,7 @@ final class SettingsStore: ObservableObject {
     }
 
     func resetToDefaults() {
-        switcherEnabled = true; snapEnabled = true; dragSnapEnabled = true; layoutsEnabled = true; snapAssistEnabled = true; includeOtherDesktops = true; includeFullScreen = true; includeMinimized = true; keepPreviewsFresh = true; appExclusions = []; previewExcludedApps = PreviewPolicy.defaultExcludedApps; gap = 0
+        switcherEnabled = true; snapEnabled = true; dragSnapEnabled = true; layoutsEnabled = true; snapAssistEnabled = true; includeOtherDesktops = true; includeFullScreen = true; includeMinimized = true; keepPreviewsFresh = true; linkedResizeEnabled = true; appExclusions = []; previewExcludedApps = PreviewPolicy.defaultExcludedApps; gap = 0
         resetShortcuts()
     }
 

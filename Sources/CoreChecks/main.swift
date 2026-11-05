@@ -457,5 +457,96 @@ do {
     check(BundlePattern.matches("com.a.*", bundleID: "com.a.b.c") && !BundlePattern.matches("com.a.*", bundleID: "com.ab"), "wildcard needs the dot")
 }
 
+section("Linked resize")
+do {
+    typealias L = LinkedResize
+    let v = CGRect(x: 0, y: 0, width: 1200, height: 800)
+    func zones(_ layout: SnapLayout, gap: CGFloat = 0) -> [Int: CGRect] {
+        Dictionary(uniqueKeysWithValues: (0..<layout.zones.count).map { ($0, layout.frame(ofZone: $0, in: v, gap: gap)) })
+    }
+    let halves = SnapLayout.presets[0], cols = SnapLayout.presets[3], grid = SnapLayout.presets[4], main2 = SnapLayout.presets[5]
+
+    eq(L.classify(old: CGRect(x: 0, y: 0, width: 500, height: 400), new: CGRect(x: 0, y: 0, width: 500.5, height: 400)), .none, "tiny jitter is nothing")
+    eq(L.classify(old: CGRect(x: 0, y: 0, width: 500, height: 400), new: CGRect(x: 80, y: 30, width: 500, height: 400)), .moved, "dragged elsewhere")
+    eq(L.classify(old: CGRect(x: 0, y: 0, width: 500, height: 400), new: CGRect(x: 0, y: 0, width: 560, height: 400)), .resized, "resized")
+    eq(L.classify(old: CGRect(x: 600, y: 0, width: 600, height: 400), new: CGRect(x: 540, y: 0, width: 660, height: 400)), .resized, "left-edge resize moves the origin too")
+
+    // two halves: drag the left window's right edge 100 to the right
+    var m = zones(halves), new = m[0]!; new.size.width += 100
+    var r = L.resolve(members: m, changed: 0, newFrame: new)
+    eq(r[0]!.maxX, 700, "left window grew"); eq(r[1]!.minX, 700, "right window's edge followed"); eq(r[1]!.maxX, 1200, "right window still reaches the screen edge")
+    eq(r[0]!.height, 800, "heights untouched")
+    // from the other side: drag the right window's left edge to the left
+    new = m[1]!; new.origin.x -= 150; new.size.width += 150
+    r = L.resolve(members: m, changed: 1, newFrame: new)
+    eq(r[1]!.minX, 450, "right window grew leftwards"); eq(r[0]!.maxX, 450, "left window shrank to match")
+    // gap preserved
+    m = zones(halves, gap: 10); new = m[0]!; new.size.width += 40
+    r = L.resolve(members: m, changed: 0, newFrame: new, gap: 10)
+    eq(r[1]!.minX - r[0]!.maxX, 10, "the gap stays 10 after a linked resize"); eq(r[1]!.maxX, m[1]!.maxX, "outer edge stays put")
+
+    // outer edge: only that window changes
+    m = zones(halves); new = m[0]!; new.origin.x += 60; new.size.width -= 60      // shrink the left window from its OUTER (left) edge
+    r = L.resolve(members: m, changed: 0, newFrame: new)
+    eq(r[0]!, CGRect(x: 60, y: 0, width: 540, height: 800), "outer edge resizes just that window"); eq(r[1]!, m[1]!, "neighbour untouched")
+
+    // three columns: dragging divider 1 only affects columns 1 and 2
+    m = zones(cols); new = m[0]!; new.size.width += 50
+    r = L.resolve(members: m, changed: 0, newFrame: new)
+    eq(r[1]!.minX, m[1]!.minX + 50, "column 2 follows"); eq(r[2]!, m[2]!, "column 3 is not touched")
+    // ...and dragging divider 2 from column 3
+    new = m[2]!; new.origin.x -= 70; new.size.width += 70
+    r = L.resolve(members: m, changed: 2, newFrame: new)
+    eq(r[1]!.maxX, m[1]!.maxX - 70, "column 2 shrinks from the right"); eq(r[0]!, m[0]!, "column 1 untouched")
+
+    // 2x2 grid: the vertical divider runs the whole height, so all four follow
+    m = zones(grid); new = m[0]!; new.size.width += 100
+    r = L.resolve(members: m, changed: 0, newFrame: new)
+    eq(r[1]!.minX, 700, "top-right follows"); eq(r[2]!.maxX, 700, "bottom-left follows"); eq(r[3]!.minX, 700, "bottom-right follows")
+    // horizontal divider, dragged from the bottom-right window's top edge
+    new = m[3]!; new.origin.y -= 60; new.size.height += 60
+    r = L.resolve(members: m, changed: 3, newFrame: new)
+    eq(r[1]!.maxY, 340, "top-right shrinks"); eq(r[0]!.maxY, 340, "top-left shrinks"); eq(r[2]!.minY, 340, "bottom-left grows"); eq(r[3]!.minY, 340, "dragged window itself")
+    // corner drag: both axes at once (top-left window's bottom-right corner)
+    new = m[0]!; new.size.width += 40; new.size.height += 30
+    r = L.resolve(members: m, changed: 0, newFrame: new)
+    eq(r[3]!.minX, 640, "diagonal neighbour follows horizontally"); eq(r[3]!.minY, 430, "and vertically")
+
+    // main + two stacked: horizontal divider only exists on the right
+    m = zones(main2); new = m[1]!; new.size.height += 50
+    r = L.resolve(members: m, changed: 1, newFrame: new)
+    eq(r[2]!.minY, 450, "lower right window follows"); eq(r[0]!, m[0]!, "the left window does not care")
+    // the vertical divider moves all three
+    new = m[0]!; new.size.width -= 100
+    r = L.resolve(members: m, changed: 0, newFrame: new)
+    eq(r[1]!.minX, 500, "upper right follows the main window"); eq(r[2]!.minX, 500, "lower right too")
+
+    // minimum size: the divider stops, and the dragged window is pulled back
+    m = zones(halves); new = m[0]!; new.size.width = 1150   // would leave the right window at 50 wide
+    r = L.resolve(members: m, changed: 0, newFrame: new)
+    eq(r[1]!.width, 120, "neighbour stops at the minimum width"); eq(r[0]!.maxX, r[1]!.minX, "still flush"); eq(r[0]!.width, 1080, "dragged window pulled back")
+    new = m[0]!; new.size.width = 60                          // dragged window itself would go below the minimum
+    r = L.resolve(members: m, changed: 0, newFrame: new)
+    eq(r[0]!.width, 120, "dragged window cannot go below the minimum either"); eq(r[1]!.minX, 120, "neighbour follows the stopped divider")
+
+    // a missing zone does not break anything; no-op returns the same frames
+    var sparse = zones(grid); sparse.removeValue(forKey: 3)
+    new = sparse[0]!; new.size.width += 30
+    r = L.resolve(members: sparse, changed: 0, newFrame: new)
+    eq(r[1]!.minX, 630, "works with an empty zone"); eq(r.count, 3, "no phantom members")
+    eq(L.resolve(members: zones(halves), changed: 0, newFrame: zones(halves)[0]!), zones(halves), "no change in, no change out")
+    eq(L.resolve(members: zones(halves), changed: 9, newFrame: .zero), zones(halves), "unknown member is ignored")
+    // windows that are NOT touching (user placed them apart) are not linked
+    let apart: [Int: CGRect] = [0: CGRect(x: 0, y: 0, width: 400, height: 800), 1: CGRect(x: 700, y: 0, width: 500, height: 800)]
+    new = apart[0]!; new.size.width += 60
+    r = L.resolve(members: apart, changed: 0, newFrame: new)
+    eq(r[1]!, apart[1]!, "windows with a gap between them are independent")
+    // windows touching the divider line but not connected vertically are not dragged along
+    let stacked: [Int: CGRect] = [0: CGRect(x: 0, y: 0, width: 600, height: 300), 1: CGRect(x: 600, y: 500, width: 600, height: 300)]
+    new = stacked[0]!; new.size.width += 40
+    r = L.resolve(members: stacked, changed: 0, newFrame: new)
+    eq(r[1]!, stacked[1]!, "no shared vertical extent: not linked")
+}
+
 print("\n\(total - failures)/\(total) checks passed")
 exit(failures == 0 ? 0 : 1)

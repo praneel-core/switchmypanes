@@ -18,6 +18,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, KeyboardMonitorDelegat
                                                       snapper: snapper, settings: settings, ids: ids)
     private lazy var assist = SnapAssistController(inventory: inventory, thumbnails: thumbnails, activator: activator,
                                                     snapper: snapper, settings: settings, ids: ids)
+    private lazy var linked = LinkedGroupController(settings: settings)
     private lazy var dragSnapper = DragSnapController(settings: settings, ids: ids, snapper: snapper)
     private let monitor = KeyboardMonitor()
     private lazy var statusItem = StatusItemController(settings: settings)
@@ -50,6 +51,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, KeyboardMonitorDelegat
         }
         inventory.startTracking()
         dragSnapper.start()
+        picker.onGroupPlaced = { [weak self] placed, gap, bounds in self?.linked.register(placed, gap: gap, bounds: bounds) }
+        snapper.onWillMoveWindow = { [weak self] pid, id in self?.linked.unlink(pid: pid, windowID: id) }
         snapper.onBeforeSnap = { [weak self] in self?.assist.cancel() }
         snapper.onSnapped = { [weak self] zone, display, pid, id, frame in
             self?.assist.offer(afterSnapTo: zone, on: display, pid: pid, windowID: id, snappedFrame: frame)
@@ -72,6 +75,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, KeyboardMonitorDelegat
         monitor.stop()
         dragSnapper.stop()
         previewKeeper.stop()
+        linked.removeAll()
         inventory.stopTracking()
     }
 
@@ -82,7 +86,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, KeyboardMonitorDelegat
     private func setPaused(_ paused: Bool) {
         settings.paused = paused
         monitor.isPaused = paused
-        if paused { switcher.cancel(); picker.cancel(); assist.cancel(); dragSnapper.reset() }
+        if paused { switcher.cancel(); picker.cancel(); assist.cancel(); dragSnapper.reset(); linked.removeAll() }
     }
 
     private func showPreferences() {
