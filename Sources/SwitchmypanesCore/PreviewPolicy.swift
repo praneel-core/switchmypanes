@@ -18,3 +18,17 @@ public enum PreviewPolicy {
         enabled && !paused && !screenLocked && !lowPowerMode && idleSeconds <= maxIdle
     }
 }
+
+/// Which glass look the overlays actually use, given the user's choice and macOS's accessibility setting.
+public enum OverlayAppearance {
+    public static let validStyles = ["glass", "frosted", "dark"]
+    public static let minimumOpacity = 0.3
+
+    /// macOS "Reduce transparency" wins over everything: solid Dark at full strength. Otherwise the user's look, with an
+    /// unknown name falling back to "glass" and the opacity kept in a usable range.
+    public static func resolve(styleName: String, opacity: Double, reduceTransparency: Bool) -> (style: String, opacity: Double) {
+        if reduceTransparency { return ("dark", 1.0) }
+        let style = validStyles.contains(styleName) ? styleName : "glass"
+        return (style, min(1.0, max(minimumOpacity, opacity)))
+    }
+}

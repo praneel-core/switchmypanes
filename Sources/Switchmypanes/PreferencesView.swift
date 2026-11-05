@@ -113,7 +113,7 @@ struct PreferencesView: View {
                         }
                         Slider(value: $settings.overlayTransparency, in: 0...0.7, step: 0.05)
                     }
-                    Text("Glass is the clearest look (real Liquid Glass on macOS 26); Frosted is in between; Dark is the heaviest and easiest to read over a busy desktop. Transparency fades only the glass: the tiles and text stay sharp. Applies the next time an overlay opens.")
+                    Text("Glass is the clearest look (real Liquid Glass on macOS 26); Frosted is in between; Dark is the heaviest and easiest to read over a busy desktop. Transparency fades only the glass: the tiles and text stay sharp. Applies the next time an overlay opens. If macOS's Accessibility option \"Reduce transparency\" is on, the overlays use the solid Dark look automatically.")
                         .font(.caption).foregroundStyle(.secondary)
                     Toggle("Window switcher shortcut enabled", isOn: $settings.switcherEnabled)
                     Toggle("Include windows from other desktops", isOn: $settings.includeOtherDesktops)

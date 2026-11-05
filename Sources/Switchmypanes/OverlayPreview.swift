@@ -188,6 +188,10 @@ enum OverlayPreview {
             png(of: panel.contentSnapshotView, over: true, to: folder.appendingPathComponent("switcher-glass-\(label).png"))
         }
         OverlayTheme.opacity = 0.65
+        OverlayTheme.reduceTransparencyOverride = true
+        let solid = make(all, selected: 1, caption: nil)
+        png(of: solid.contentSnapshotView, over: true, to: folder.appendingPathComponent("switcher-reduce-transparency.png"))
+        OverlayTheme.reduceTransparencyOverride = nil
         // the close button: shown on the second tile (resting) and the third (pointed at)
         let closeDemo = make(Array(all.prefix(4)), selected: 1, caption: nil)
         closeDemo.debugShowCloseButton(on: 1, pointedAt: false); closeDemo.debugShowCloseButton(on: 2, pointedAt: true)

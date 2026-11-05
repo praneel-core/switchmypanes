@@ -210,8 +210,10 @@ final class SwitcherPanel: NSPanel {
                  caption: String? = nil, center: NSPoint? = nil, show: Bool = true,
                  thumbnail: (CGWindowID) -> NSImage?) {
         let wasVisible = isVisible
-        if glass.style != OverlayTheme.style { glass = OverlayTheme.makeGlass(); contentView = glass.root }   // the look was changed in Preferences
-        glass.applyOpacity(OverlayTheme.opacity)                                                                  // ...or its transparency
+        // (the look and transparency are re-read each time: Preferences, or macOS's "Reduce transparency", may have changed)
+        let appearance = OverlayTheme.effective
+        if glass.style != appearance.style { glass = OverlayTheme.makeGlass(); contentView = glass.root }
+        glass.applyOpacity(appearance.opacity)
         tiles.forEach { $0.removeFromSuperview() }
         tiles.removeAll()
         captionLabel?.removeFromSuperview(); captionLabel = nil

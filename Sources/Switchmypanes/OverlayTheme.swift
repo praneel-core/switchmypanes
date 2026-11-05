@@ -1,4 +1,5 @@
 import AppKit
+import SwitchmypanesCore
 
 /// The look shared by every overlay (window switcher, Snap Assist, Snap Layouts): a glass panel and colour-coded tags. Kept in one place so all overlays stay consistent.
 enum OverlayTheme {
@@ -17,8 +18,16 @@ enum OverlayTheme {
         case glass, frosted, dark
         var title: String { switch self { case .glass: return "Glass"; case .frosted: return "Frosted"; case .dark: return "Dark" } }
     }
-    /// The look currently in use (set from Preferences; panels pick it up the next time they appear).
+    /// The look the USER chose (set from Preferences; panels pick it up the next time they appear).
     nonisolated(unsafe) static var style: Style = .glass
+    /// Tests / previews: pretend macOS's "Reduce transparency" is on (true) or off (false); nil = ask macOS.
+    nonisolated(unsafe) static var reduceTransparencyOverride: Bool?
+    static var reduceTransparency: Bool { reduceTransparencyOverride ?? NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency }
+    /// The look and opacity actually used: the user's choice, unless macOS asks for less transparency (then solid Dark).
+    static var effective: (style: Style, opacity: CGFloat) {
+        let r = OverlayAppearance.resolve(styleName: style.rawValue, opacity: Double(opacity), reduceTransparency: reduceTransparency)
+        return (Style(rawValue: r.style) ?? .glass, CGFloat(r.opacity))
+    }
 
     /// How much of the glass is visible: 1 = the system glass at full strength, lower = more see-through. Chosen in
     /// Preferences as "Transparency"; only the glass fades, the tiles and text on top stay sharp.
@@ -45,7 +54,7 @@ enum OverlayTheme {
     /// The rounded glass background every overlay sits on.
     ///  - macOS 26+: real Liquid Glass (`NSGlassEffectView`): clear for Glass, regular for Frosted, tinted for Dark.
     ///  - older macOS: a system blur material, lighter for Glass and heavier for Dark.
-    static func makeGlass(_ style: Style = OverlayTheme.style) -> Glass {
+    static func makeGlass(_ style: Style = OverlayTheme.effective.style) -> Glass {
         let root = NSView()
         root.autoresizingMask = [.width, .height]
         let content = NSView()
@@ -88,7 +97,7 @@ enum OverlayTheme {
         root.addSubview(backdrop)
         root.addSubview(content)
         let glass = Glass(root: root, backdrop: backdrop, content: content, style: style)
-        glass.applyOpacity(opacity)
+        glass.applyOpacity(effective.opacity)
         return glass
     }
 
@@ -96,12 +105,12 @@ enum OverlayTheme {
     static func softTextShadow() -> NSShadow {
         let s = NSShadow()
         s.shadowBlurRadius = 3; s.shadowOffset = NSSize(width: 0, height: -1)
-        s.shadowColor = NSColor.black.withAlphaComponent(style == .dark ? 0.25 : 0.5)
+        s.shadowColor = NSColor.black.withAlphaComponent(effective.style == .dark ? 0.25 : 0.5)
         return s
     }
 
     /// How dark the little backing frame behind each thumbnail is: lighter on clearer glass.
-    static var thumbnailBackdropAlpha: CGFloat { [Style.glass: 0.22, .frosted: 0.28, .dark: 0.34][style] ?? 0.3 }
+    static var thumbnailBackdropAlpha: CGFloat { [Style.glass: 0.22, .frosted: 0.28, .dark: 0.34][effective.style] ?? 0.3 }
 
     /// Colour of a window's tag ("Desktop 2", "Full screen", "Minimized", "Hidden").
     static func tagColor(for label: String) -> NSColor {

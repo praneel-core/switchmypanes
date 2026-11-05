@@ -724,5 +724,16 @@ do {
     check(short >= 0.16 && long <= 0.30, "durations stay between 0.16 s and 0.30 s"); check(long > short, "a longer trip takes longer")
 }
 
+section("Overlay appearance")
+do {
+    func r(_ style: String, _ o: Double, _ reduce: Bool) -> (style: String, opacity: Double) { OverlayAppearance.resolve(styleName: style, opacity: o, reduceTransparency: reduce) }
+    eq(r("glass", 0.65, false).style, "glass", "the chosen look is used"); eq(r("glass", 0.65, false).opacity, 0.65, "and its opacity")
+    eq(r("glass", 0.65, true).style, "dark", "Reduce transparency: solid Dark look"); eq(r("glass", 0.4, true).opacity, 1.0, "at full strength")
+    eq(r("frosted", 0.5, true).style, "dark", "whatever look was chosen")
+    eq(r("dark", 0.65, false).style, "dark", "Dark chosen normally stays Dark")
+    eq(r("mystery", 0.65, false).style, "glass", "an unknown look falls back to glass")
+    eq(r("glass", 0.05, false).opacity, 0.3, "never so transparent that it is unreadable"); eq(r("glass", 4, false).opacity, 1.0, "or above full")
+}
+
 print("\n\(total - failures)/\(total) checks passed")
 exit(failures == 0 ? 0 : 1)

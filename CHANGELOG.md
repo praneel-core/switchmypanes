@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Respects macOS's *Reduce transparency*: the overlays switch to the solid Dark look automatically (rule in Core, tested).
 - App icon: three glass windows with one lit and a divider grip, in the same glass style as the app (drawn in code by `tools/make-app-icon.swift`).
 - Transparency slider for the overlay glass (default 35%): only the glass fades, the tiles and text stay sharp. The glass is now a separate layer behind the content.
 - A new close button on tiles: a small dark glass disc with a thin ×, fading in on hover and turning soft red when pointed at, replacing the stock red icon.

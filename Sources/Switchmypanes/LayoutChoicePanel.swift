@@ -88,8 +88,10 @@ final class LayoutChoicePanel: NSPanel {
 
     func present(layouts: [SnapLayout], selected: Int, on screen: NSScreen, show: Bool = true) {
         let wasVisible = isVisible
-        if glass.style != OverlayTheme.style { glass = OverlayTheme.makeGlass(); contentView = glass.root }   // the look was changed in Preferences
-        glass.applyOpacity(OverlayTheme.opacity)                                                                  // ...or its transparency
+        // (the look and transparency are re-read each time: Preferences, or macOS's "Reduce transparency", may have changed)
+        let appearance = OverlayTheme.effective
+        if glass.style != appearance.style { glass = OverlayTheme.makeGlass(); contentView = glass.root }
+        glass.applyOpacity(appearance.opacity)
         cells.forEach { $0.removeFromSuperview() }; cells.removeAll()
         glass.content.subviews.forEach { $0.removeFromSuperview() }
         initialMouse = NSEvent.mouseLocation
