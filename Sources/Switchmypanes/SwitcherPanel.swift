@@ -20,8 +20,8 @@ struct SwitcherLayout {
     /// Layout that fits inside `bounds` (a screen, or just the empty half for Snap Assist).
     static func plan(count: Int, bounds: CGSize, widthFraction: CGFloat, heightFraction: CGFloat) -> SwitcherLayout {
         let maxW = bounds.width * widthFraction - 2 * padding
-        // room for the caption line and the hint bar as well
-        let maxH = bounds.height * heightFraction - 2 * padding - OverlayTheme.captionHeight - OverlayTheme.hintBarHeight
+        // room for the caption line as well
+        let maxH = bounds.height * heightFraction - 2 * padding - OverlayTheme.captionHeight
         var best = SwitcherLayout(scale: 0.5, columns: 1, rows: 1, capacity: 1)
         for scale in [1.0, 0.85, 0.7, 0.55, 0.45] as [CGFloat] {
             let tw = baseTile.width * scale, th = baseTile.height * scale
@@ -175,7 +175,6 @@ final class SwitcherPanel: NSPanel {
 
     private var glass = OverlayTheme.makeGlass()
     private let ring = NSView()                          // the highlight that slides to the selected tile
-    private let hintBar = HintBarView()
     private var tiles: [WindowTileView] = []
     private var captionLabel: NSTextField?
     private var initialMouse = NSPoint.zero
@@ -199,27 +198,24 @@ final class SwitcherPanel: NSPanel {
     }
 
     /// - Parameters:
-    ///   - hints: keyboard hints for the bottom bar
     ///   - show: false = lay everything out but do not put the panel on screen (used to render pictures of it)
     func present(windows: [WindowInfo], layout: SwitcherLayout, selected: Int, on screen: NSScreen,
-                 caption: String? = nil, hints: [Hint] = [], center: NSPoint? = nil, show: Bool = true,
+                 caption: String? = nil, center: NSPoint? = nil, show: Bool = true,
                  thumbnail: (CGWindowID) -> NSImage?) {
         let wasVisible = isVisible
         if glass.style != OverlayTheme.style { glass = OverlayTheme.makeGlass(); contentView = glass.root }   // the look was changed in Preferences
         tiles.forEach { $0.removeFromSuperview() }
         tiles.removeAll()
         captionLabel?.removeFromSuperview(); captionLabel = nil
-        ring.removeFromSuperview(); hintBar.removeFromSuperview()
+        ring.removeFromSuperview()
         initialMouse = NSEvent.mouseLocation
         ringPlaced = false
 
         let tile = layout.tile, sp = SwitcherLayout.spacing, pad = SwitcherLayout.padding
         let header: CGFloat = caption == nil ? 0 : OverlayTheme.captionHeight
-        let footer: CGFloat = hints.isEmpty ? 0 : OverlayTheme.hintBarHeight
         let gridWidth = CGFloat(layout.columns) * tile.width + CGFloat(layout.columns - 1) * sp
-        let width = max(gridWidth + 2 * pad, hints.isEmpty ? 0 : HintBarView.preferredWidth(for: hints) + 2 * pad,
-                        caption == nil ? 0 : 520)
-        let height = CGFloat(layout.rows) * tile.height + CGFloat(layout.rows - 1) * sp + 2 * pad + header + footer
+        let width = max(gridWidth + 2 * pad, caption == nil ? 0 : 520)
+        let height = CGFloat(layout.rows) * tile.height + CGFloat(layout.rows - 1) * sp + 2 * pad + header
         let leftInset = (width - gridWidth) / 2
         glass.root.setFrameSize(NSSize(width: width, height: height))
         glass.content.frame = glass.root.bounds
@@ -249,11 +245,6 @@ final class SwitcherPanel: NSPanel {
             l.wantsLayer = true; l.shadow = OverlayTheme.softTextShadow()
             glass.content.addSubview(l)
             captionLabel = l
-        }
-        if !hints.isEmpty {
-            hintBar.hints = hints
-            hintBar.frame = NSRect(x: 0, y: 6, width: width, height: footer - 6)
-            glass.content.addSubview(hintBar)
         }
         setSelected(selected, animated: false)
 

@@ -72,7 +72,6 @@ final class LayoutChoicePanel: NSPanel {
 
     static let columns = 3
     private var glass = OverlayTheme.makeGlass()
-    private let hintBar = HintBarView()
     private var cells: [LayoutCellView] = []
     private var initialMouse = NSPoint.zero
     var onClick: ((Int) -> Void)?
@@ -95,11 +94,10 @@ final class LayoutChoicePanel: NSPanel {
         initialMouse = NSEvent.mouseLocation
         let cols = Self.columns, rows = Int((Double(layouts.count) / Double(cols)).rounded(.up))
         let cell = NSSize(width: 196, height: 146), sp: CGFloat = 10, pad: CGFloat = 24
-        let header = OverlayTheme.captionHeight, footer = OverlayTheme.hintBarHeight
-        let hints: [Hint] = .layoutChoice
+        let header = OverlayTheme.captionHeight
         let gridW = CGFloat(cols) * cell.width + CGFloat(cols - 1) * sp
-        let width = max(gridW + 2 * pad, HintBarView.preferredWidth(for: hints) + 2 * pad)
-        let height = CGFloat(rows) * cell.height + CGFloat(rows - 1) * sp + 2 * pad + header + footer
+        let width = gridW + 2 * pad
+        let height = CGFloat(rows) * cell.height + CGFloat(rows - 1) * sp + 2 * pad + header
         glass.root.setFrameSize(NSSize(width: width, height: height))
         glass.content.frame = glass.root.bounds
 
@@ -126,9 +124,6 @@ final class LayoutChoicePanel: NSPanel {
             v.isSelected = (i == selected)
             glass.content.addSubview(v); cells.append(v)
         }
-        hintBar.hints = hints
-        hintBar.frame = NSRect(x: 0, y: 6, width: width, height: footer - 6)
-        glass.content.addSubview(hintBar)
 
         let vf = screen.visibleFrame
         setFrame(NSRect(x: vf.midX - width / 2, y: vf.midY - height / 2, width: width, height: height), display: true)

@@ -73,7 +73,7 @@ enum OverlayPreview {
             for width in [CGFloat(1100), 1470, 1920] {
                 let layout = SwitcherLayout.plan(count: count, bounds: CGSize(width: width, height: 1000), widthFraction: 0.9, heightFraction: 0.85)
                 let panel = SwitcherPanel()
-                panel.present(windows: windows, layout: layout, selected: 0, on: screen, hints: [], show: false, thumbnail: { _ in nil })
+                panel.present(windows: windows, layout: layout, selected: 0, on: screen, show: false, thumbnail: { _ in nil })
                 let frames = panel.debugTileFrames
                 guard frames.count == count else { print("FAIL: drew \(frames.count) of \(count) tiles"); return false }
                 // rows by vertical position, top row first (AppKit y goes up)
@@ -112,7 +112,7 @@ enum OverlayPreview {
             OverlayTheme.style = style
             let panel = SwitcherPanel()
             panel.present(windows: windows, layout: SwitcherLayout.plan(count: windows.count, screen: screen), selected: 1, on: screen,
-                          hints: .switcher(modifier: "⌥"), thumbnail: { thumbs[$0] })
+                          thumbnail: { thumbs[$0] })
             RunLoop.current.run(until: Date().addingTimeInterval(0.5))
             let up = panel.isVisible && panel.frame.width > 300 && panel.contentView != nil
             panel.setSelected(2)
@@ -164,35 +164,35 @@ enum OverlayPreview {
         let samples = sampleWindows()
         let thumbs = Dictionary(uniqueKeysWithValues: samples.compactMap { w, img in img.map { (w.id, $0) } })
 
-        func make(_ windows: [WindowInfo], selected: Int, caption: String?, hints: [Hint], layout: SwitcherLayout? = nil) -> SwitcherPanel {
+        func make(_ windows: [WindowInfo], selected: Int, caption: String?, layout: SwitcherLayout? = nil) -> SwitcherPanel {
             let panel = SwitcherPanel()
             let plan = layout ?? SwitcherLayout.plan(count: windows.count, screen: screen)
-            panel.present(windows: windows, layout: plan, selected: selected, on: screen, caption: caption, hints: hints, show: false,
+            panel.present(windows: windows, layout: plan, selected: selected, on: screen, caption: caption, show: false,
                           thumbnail: { thumbs[$0] })
             return panel
         }
         let all = samples.map(\.0)
         // The first pass over an app icon renders it blank (icons load lazily), so warm them up with a throw-away pass.
-        let warmUp = make(all, selected: 1, caption: nil, hints: .switcher(modifier: "⌥"))
+        let warmUp = make(all, selected: 1, caption: nil)
         png(of: warmUp.contentSnapshotView, over: true, to: folder.appendingPathComponent(".warmup.png"))
         try? FileManager.default.removeItem(at: folder.appendingPathComponent(".warmup.png"))
         for style in OverlayTheme.Style.allCases {
             OverlayTheme.style = style
-            let panel = make(all, selected: 1, caption: nil, hints: .switcher(modifier: "⌥"))
+            let panel = make(all, selected: 1, caption: nil)
             png(of: panel.contentSnapshotView, over: true, to: folder.appendingPathComponent("switcher-\(style.rawValue).png"))
         }
         OverlayTheme.style = .glass
-        let switcher = make(all, selected: 1, caption: nil, hints: .switcher(modifier: "⌥"))
+        let switcher = make(all, selected: 1, caption: nil)
         png(of: switcher.contentSnapshotView, over: true, to: folder.appendingPathComponent("switcher.png"))
         // 8 windows in 5 columns: the last row of 3 is centred (the case where Down used to land one tile off)
         let eight = (0..<8).map { i -> WindowInfo in let w = all[i % all.count]; return WindowInfo(id: UInt32(200 + i), pid: w.pid, appName: w.appName, title: w.title, frame: .zero, icon: w.icon, placement: w.placement, spaceLabel: w.spaceLabel, bundleID: w.bundleID) }
         let eightThumbs = Dictionary(uniqueKeysWithValues: eight.enumerated().compactMap { i, w in thumbs[all[i % all.count].id].map { (w.id, $0) } })
         let eightPanel = SwitcherPanel()
-        eightPanel.present(windows: eight, layout: SwitcherLayout.plan(count: 8, screen: screen), selected: 2, on: screen, hints: .switcher(modifier: "⌥"), show: false, thumbnail: { eightThumbs[$0] })
+        eightPanel.present(windows: eight, layout: SwitcherLayout.plan(count: 8, screen: screen), selected: 2, on: screen, show: false, thumbnail: { eightThumbs[$0] })
         png(of: eightPanel.contentSnapshotView, over: true, to: folder.appendingPathComponent("switcher-8-windows.png"))
-        let few = make(Array(all.prefix(3)), selected: 1, caption: nil, hints: .switcher(modifier: "⌥"))
+        let few = make(Array(all.prefix(3)), selected: 1, caption: nil)
         png(of: few.contentSnapshotView, over: true, to: folder.appendingPathComponent("switcher-3-windows.png"))
-        let assist = make(Array(all.prefix(4)), selected: 0, caption: "Snap Assist: pick a window for the empty area", hints: .assist,
+        let assist = make(Array(all.prefix(4)), selected: 0, caption: "Snap Assist: pick a window for the empty area",
                           layout: SwitcherLayout.plan(count: 4, bounds: CGSize(width: 760, height: 800), widthFraction: 0.95, heightFraction: 0.9))
         png(of: assist.contentSnapshotView, over: true, to: folder.appendingPathComponent("snap-assist.png"))
 

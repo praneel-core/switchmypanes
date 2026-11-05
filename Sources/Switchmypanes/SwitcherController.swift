@@ -11,8 +11,6 @@ final class SwitcherController {
 
     /// The modifier flags that must stay held for the overlay to stay open (the configured switcher modifier).
     var requiredModifierFlags: () -> CGEventFlags = { .maskAlternate }
-    /// The symbol of the held key (⌥ by default), shown in the overlay's hint bar.
-    var modifierSymbol: () -> String = { "⌥" }
     private(set) var isActive = false
     private var windows: [WindowInfo] = []
     private var selection = SwitcherSelection(count: 0)
@@ -82,7 +80,7 @@ final class SwitcherController {
         let layout = SwitcherLayout.plan(count: windows.count, screen: screen)
         columns = layout.columns
         panel.present(windows: windows, layout: layout, selected: selection.index, on: screen,
-                      hints: .switcher(modifier: modifierSymbol()), thumbnail: { [thumbnails] in thumbnails.cached($0) })
+                      thumbnail: { [thumbnails] in thumbnails.cached($0) })
         guard !panelVisible else { return }       // thumbnails are only (re)captured when the overlay first appears
         panelVisible = true
         // Windows on other Spaces cannot be captured; they show their last cached picture, or the app icon.

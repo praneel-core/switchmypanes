@@ -102,7 +102,7 @@ the screen is locked, you are idle, or Low Power Mode is on; password managers a
 thing can be switched off, and apps can be added to a never-capture list, in Preferences.
 
 ## Preferences and menu bar
-Preferences has five tabs (General, Shortcuts, Switcher, Snapping, Apps). The overlays share one glass look (three choices in Preferences → Switcher: **Glass**, the clearest and the default, which is real Liquid Glass on macOS 26; **Frosted**; and **Dark**, the heaviest and easiest to read over a busy desktop) with a keyboard-hint bar at the bottom, a highlight that slides to the selected tile, colour-coded tags, and a quick fade-in (all motion is skipped when macOS's Reduce motion is on). Preferences has click-to-record **shortcuts** (clashes with macOS or with text editing, such as ⌘Tab or ⌥←, are refused
+Preferences has five tabs (General, Shortcuts, Switcher, Snapping, Apps). The overlays share one glass look (three choices in Preferences → Switcher: **Glass**, the clearest and the default, which is real Liquid Glass on macOS 26; **Frosted**; and **Dark**, the heaviest and easiest to read over a busy desktop), a highlight that slides to the selected tile, colour-coded tags, and a quick fade-in (all motion is skipped when macOS's Reduce motion is on). Preferences has click-to-record **shortcuts** (clashes with macOS or with text editing, such as ⌘Tab or ⌥←, are refused
 with a reason), toggles for every feature, the gap between snapped windows, the never-capture and excluded-app lists, and
 **Open at login** (via macOS's own login items; install with `./build.sh install` first so it points at `~/Applications`).
 
@@ -176,6 +176,6 @@ XCTest is not available with only the Command Line Tools, so the logic checks ar
 12. **Exclusions**: add Safari with only "Hide from switcher": it disappears from the switcher but still snaps; with only "Never snap": the snap shortcuts, dragging and Assist ignore it.
 13. **Preferences**: record a new Snap Layouts shortcut (⌃⌥B) and check the old one stops working; ⌘Tab and ⌥← are refused; record ⌃⌥Tab for the switcher (releasing either key commits); the reset arrows work; while recording, the current shortcut does not trigger.
 14. **Open at login**: turn it on from the installed copy, approve it in System Settings if asked, log out and in: the menu bar icon returns.
-15. **Look and animation**: open the switcher: a glass panel, a hint bar along the bottom, tags on other-desktop / minimized tiles, and a highlight ring that slides as you press Tab. Snap a window with Control+Option+Left, drag one to an edge, and fill a layout: a glowing outline travels to where each window lands and fades. Turn Reduce motion on in System Settings → Accessibility → Display: the overlays appear instantly and nothing animates.
+15. **Look and animation**: open the switcher: a glass panel, tags on other-desktop / minimized tiles, and a highlight ring that slides as you press Tab. Snap a window with Control+Option+Left, drag one to an edge, and fill a layout: a glowing outline travels to where each window lands and fades. Turn Reduce motion on in System Settings → Accessibility → Display: the overlays appear instantly and nothing animates.
 16. **Menu bar**: Pause stops every shortcut; Resume restores them; Quit removes the icon.
 </details>

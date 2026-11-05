@@ -44,7 +44,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, KeyboardMonitorDelegat
         monitor.delegate = self
         monitor.isSuspended = { [settings] in settings.isRecordingShortcut }
         switcher.requiredModifierFlags = { [settings] in settings.switcherModifier.cgFlags }
-        switcher.modifierSymbol = { [settings] in ShortcutDisplay.symbols(settings.switcherModifier) }
         monitor.configProvider = { [settings] in settings.config }
         thumbnails.isAllowed = { [weak self] id in
             guard let self else { return true }

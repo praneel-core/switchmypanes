@@ -108,7 +108,7 @@ final class SnapAssistController {
         zonePreview.show(frame: freeFrame)
         let c = DisplayProvider.converter.flip(CGPoint(x: freeFrame.midX, y: freeFrame.midY))
         panel.present(windows: available, layout: plan, selected: 0, on: screen,
-                      caption: "Snap Assist: pick a window for the empty area", hints: .assist,
+                      caption: "Snap Assist: pick a window for the empty area",
                       center: NSPoint(x: c.x, y: c.y), thumbnail: { [thumbnails] in thumbnails.cached($0) })
         thumbnails.refresh(windowIDs: available.map(\.id)) { [weak self] id, image in
             guard let self, self.isActive else { return }
