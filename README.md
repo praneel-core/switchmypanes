@@ -34,12 +34,15 @@ Free, local only: no accounts, no network calls, no analytics. Phase 1 of 3: see
   arrow keys + Return, the digits 1–9, or the mouse. Then, for each area in turn (outlined on screen), pick a window;
   it moves there immediately. Space skips an area, Esc stops (windows already placed stay). Note that Option+Z
   normally types “Ω”; turn this off in Preferences if you need it.
-- **Linked resizing**: windows you place with **Snap Layouts**, and the pair you make with **Snap Assist** (snap one
-  window to a half, pick another for the empty half), stay linked. Drag the divider between two of them and
-  the windows touching that divider follow, so the group stays flush (in a 2×2 grid the whole vertical or horizontal
-  divider moves; with three columns only the two next to the divider). A window leaves the group when you drag it
-  away, snap it, or close it. Windows stop at their minimum size instead of overlapping: if an app refuses to get smaller than some size, Switchmypanes notices after a fraction of a second, remembers that size for the app, and stops the divider there (the first time you hit an app's limit you may see a brief overlap that then corrects itself). Only windows placed through Snap Layouts
-  or Snap Assist are linked: windows you lined up by hand are not. Toggle in Preferences.
+- **Linked resizing, with a divider line**: windows you place with **Snap Layouts**, and the pair you make with
+  **Snap Assist** (snap one window to a half, pick another for the empty half), are linked. A thin accent-coloured line
+  with a small grip appears between them (while you are working in one of those apps): that line means "these windows
+  are linked". **Drag the line** and the windows on both sides resize together, so they stay flush (in a 2×2 grid the
+  whole vertical or horizontal line moves; with three columns, the line between two columns). The line stops where a
+  window cannot get any smaller, so nothing overlaps; dragging back always works. A window leaves the group (and the line
+  disappears) when you drag it away, snap it elsewhere, or close it. Resizing a window by its own edge also still
+  pulls its neighbours along. Only windows placed through Snap Layouts or Snap Assist are linked, not ones lined up by
+  hand. Toggle in Preferences.
 - **Snap Assist**: after a window is snapped to the left or right half (keyboard or drag), thumbnails of your other
   windows appear over the empty half. Click one, or use the arrows + Return, and it fills the space. Esc, a click
   elsewhere, or any other key closes it (and that key then does its normal job, so chaining snaps works).
@@ -89,7 +92,7 @@ snap shortcuts, and, while the overlay is open, Tab / arrows / Esc.
 
 ## Diagnostics
 
-**Linked resizing not reacting?** Quit Switchmypanes from its menu, then run it from Terminal with logging:
+**Linked resizing: no line appears, or it does not follow?** (No line after filling a layout means the group was not created.) Quit Switchmypanes from its menu, then run it from Terminal with logging:
 `SWITCHMYPANES_DEBUG=1 ~/Applications/Switchmypanes.app/Contents/MacOS/Switchmypanes`, reproduce the problem (fill a
 layout or pick a window in Snap Assist, then drag the divider) and send me the lines starting with `[linked]`. They show
 whether the group was created, whether the apps report resizes, and what was decided. `Switchmypanes --selftest-linked`
@@ -135,5 +138,5 @@ No automated tests can click macOS permission dialogs; see the manual test check
 20. Preferences: open it (it should fit your screen and scroll). Click the Snap Layouts shortcut, press ⌃⌥B: it changes; press Option+Z: it should now do nothing, ⌃⌥B opens the picker. Try ⌘Tab for the switcher (refused), ⌥← for snapping (refused). Record ⌃⌥Tab for the switcher: hold both, Tab cycles, releasing EITHER key commits. Use the reset arrows. While recording, pressing the current shortcut must NOT trigger it.
 21. Open at login: turn it on from the installed copy. If macOS asks, approve it in System Settings → General → Login Items; log out and in (or restart) and check that the menu bar icon is back. Turn it off again to test that too.
 22. Exclusions: in Preferences → Excluded apps, add Safari with only "Hide from switcher" ticked: its windows disappear from Option+Tab but still snap. Untick that and tick "Never snap": Control+Option+Left, dragging to an edge, and Snap Assist/Layouts all ignore Safari's windows. While IN an excluded app, Option+Tab should go to your most recent other window straight away. Remove the entry with the minus button: everything returns.
-23. Linked resize: Option+Z, pick "Halves", place two windows. Drag the divider (the shared edge) of one: the other should follow live. Try "Grid 2 × 2" (dragging a vertical divider should move all four), "Three columns" (only the two beside the divider), and "Main + two stacked". Drag a window by its title bar away: it should leave the group and the others stop following. Try dragging the divider far, towards an app with a large minimum width (e.g. Calculator, System Settings): the divider should stop and nothing should overlap; then drag back: the link must still work. Same for Snap Assist: snap a window Left (Control+Option+Left), pick another for the right half, then drag the divider: both should move together; snapping either window again with a shortcut should release the link. Tell me which apps lag or refuse (some apps resize slowly).
+23. Linked resize: Option+Z, pick "Halves", place two windows: a coloured line with a grip should appear between them. Drag the LINE: both windows should resize together. Try "Grid 2 × 2" (dragging a vertical divider should move all four), "Three columns" (only the two beside the divider), and "Main + two stacked". Drag a window by its title bar away: it should leave the group and the others stop following. Try dragging the divider far, towards an app with a large minimum width (e.g. Calculator, System Settings): the divider should stop and nothing should overlap; then drag back: the link must still work. Same for Snap Assist: snap a window Left (Control+Option+Left), pick another for the right half, then drag the divider: both should move together; snapping either window again with a shortcut should release the link. Tell me which apps lag or refuse (some apps resize slowly).
 24. Menu bar: Pause stops all shortcuts; Resume restores; Quit removes the icon.

@@ -50,9 +50,24 @@ final class LinkedGroupController {
     /// Tests can switch notifications off to prove the mouse-drag polling works on its own.
     var useNotifications = true
     private var mouseMonitors: [Any] = []
+    /// Diagnostics: show the lines even when the group's apps are not in front.
+    var forceShowDividers = false
+    private let overlay = DividerOverlay()
+    private var shown: [(group: Group, divider: Divider)] = []
+    private var dragging: (group: Group, divider: Divider)?
+    private var activationObserver: NSObjectProtocol?
 
     init(settings: SettingsStore) {
         self.settings = settings
+        overlay.onBegin = { [weak self] i in self?.dividerBegan(i) }
+        overlay.onMove = { [weak self] i, pos in self?.dividerMoved(i, to: pos) }
+        overlay.onEnd = { [weak self] in self?.dividerEnded() }
+        // Show the lines only while you are working in one of the linked windows' apps; otherwise another app's
+        // window may be covering them and a floating line would look out of place.
+        activationObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.refreshDividers() }
+        }
         // A different display setup invalidates every remembered frame.
         NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.removeAll() }
@@ -84,6 +99,7 @@ final class LinkedGroupController {
             self.groups.append(group)
             for m in group.members.values { self.watch(m) }
             self.updateMouseMonitors()
+            self.refreshDividers()
         }
     }
 
@@ -96,9 +112,11 @@ final class LinkedGroupController {
     func removeAll() {
         for g in groups { for m in g.members.values { unwatch(m) } }
         groups.removeAll()
+        overlay.removeAll(); shown = []
         for (_, o) in observers { CFRunLoopRemoveSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(o), .commonModes) }
         observers.removeAll()
         updateMouseMonitors()
+        refreshDividers()
     }
 
     private func remove(_ m: Member, from g: Group) {
@@ -109,6 +127,88 @@ final class LinkedGroupController {
             groups.removeAll { $0 === g }
             updateMouseMonitors()
         }
+        refreshDividers()
+    }
+
+    // MARK: the visible divider lines (and dragging them)
+
+    /// Draws a line for every divider of every group, at the windows' CURRENT positions.
+    private func refreshDividers() {
+        guard settings.linkedResizeEnabled, !settings.paused, !groups.isEmpty else { overlay.removeAll(); shown = []; return }
+        let front = NSWorkspace.shared.frontmostApplication?.processIdentifier
+        var items: [(group: Group, divider: Divider)] = []
+        for g in groups {
+            // visible when you are in one of the group's apps (or are dragging the line itself, when our own app is in front)
+            guard forceShowDividers || front == getpid() || g.members.values.contains(where: { $0.pid == front }) else { continue }
+            let frames = g.members.mapValues(\.frame)
+            items += LinkedResize.dividers(members: frames, gap: g.gap).map { (g, $0) }
+        }
+        shown = items
+        log("showing \(items.count) divider line(s)")
+        overlay.show(items.map(\.divider))
+    }
+
+    /// Diagnostics: performs the same steps as dragging the first divider with the mouse (self-test only).
+    func debugDragFirstDivider(through positions: [CGFloat], pause: () -> Void) {
+        refreshDividers()
+        guard !shown.isEmpty else { log("no divider to drag"); return }
+        dividerBegan(0)
+        for p in positions { dividerMoved(0, to: p); pause() }
+        dividerEnded()
+    }
+
+    /// Diagnostics: where the first divider line currently is (top-left coordinates), if any.
+    var debugFirstDividerPosition: CGFloat? { shown.first?.divider.position }
+
+    private func dividerBegan(_ index: Int) {
+        guard index < shown.count else { return }
+        dragging = shown[index]
+        log("divider grabbed (\(shown[index].divider.axis))")
+    }
+
+    /// The user drags the line. We decide where every window goes, set them all, then READ BACK what the apps
+    /// really did: if a window refused to get smaller, the line stops there instead of overlapping it.
+    private func dividerMoved(_ index: Int, to position: CGFloat) {
+        guard let (g, divider) = dragging else { return }
+        func readActual() -> [Int: CGRect] { g.members.mapValues { AX.frame($0.element) ?? $0.frame } }
+        func place(_ targets: [Int: CGRect], current: [Int: CGRect]) {
+            for (id, target) in targets {
+                guard let m = g.members[id], LinkedResize.classify(old: current[id] ?? m.frame, new: target) != .none else { continue }
+                m.ignoreUntil = Date().addingTimeInterval(0.5)          // the app's own notifications about OUR change
+                WindowMover.apply(target, to: m.element, bounds: g.bounds)
+            }
+        }
+        let minSizes = g.members.compactMapValues(\.minSize)
+        var current = readActual()
+        var targets = LinkedResize.dragDivider(members: current, divider: divider, to: position, gap: g.gap, minSizes: minSizes)
+        place(targets, current: current)
+
+        var real = readActual()
+        // Reality check: a window that did not get as small as asked would now overlap its neighbour.
+        // Pull the line back to where the stubborn window actually is.
+        for _ in 0..<2 {
+            let beforeEdge = divider.before.compactMap { real[$0] }.map { divider.axis == .vertical ? $0.maxX : $0.maxY }.max() ?? 0
+            let afterEdge = divider.after.compactMap { real[$0] }.map { divider.axis == .vertical ? $0.minX : $0.minY }.min() ?? 0
+            guard beforeEdge + g.gap > afterEdge + 3 else { break }
+            current = real
+            targets = LinkedResize.dragDivider(members: real, divider: divider, to: afterEdge - g.gap / 2, gap: g.gap, minSizes: minSizes)
+            place(targets, current: current)
+            real = readActual()
+        }
+        // Learn real minimums (only when a window stays too big for several drag events in a row, so a slow app is not blamed).
+        for id in divider.before + divider.after {
+            guard let m = g.members[id], let target = targets[id], let r = real[id] else { continue }
+            let outcome = MinSizeLearning.check(intended: target, real: r, refusals: m.refusals, current: m.minSize, confirmations: 6)
+            m.refusals = outcome.refusals
+            if outcome.learned, let min = outcome.minSize { m.minSize = min; learnedMin[m.pid] = min; log("learned minimum \(min) for window \(m.windowID)") }
+        }
+        for (id, f) in real { g.members[id]?.frame = f }                 // the model follows reality
+        refreshDividers()                                                // so the line shows where the divider really is
+    }
+
+    private func dividerEnded() {
+        dragging = nil
+        refreshDividers()
     }
 
     // MARK: mouse-drag polling (does not depend on the dragged app sending notifications)
@@ -191,6 +291,7 @@ final class LinkedGroupController {
             followDrag(in: g)
             scheduleVerify(g)
             scheduleSettle(g)
+            refreshDividers()
         }
     }
 

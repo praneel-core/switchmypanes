@@ -578,6 +578,49 @@ do {
         eq(o.minSize?.width, 900, "a learned minimum never goes down")
     }
 
+    // ---- dividers (the visible line you drag)
+    do {
+        let hv = L.dividers(members: zones(halves))
+        eq(hv.count, 1, "halves: one divider"); eq(hv[0].axis, .vertical, "vertical"); eq(hv[0].position, 600, "in the middle")
+        eq(hv[0].start, 0, "extends the full height (start)"); eq(hv[0].end, 800, "(end)"); eq(hv[0].before, [0], "window 0 is before it"); eq(hv[0].after, [1], "window 1 after")
+        let gv = L.dividers(members: zones(halves, gap: 10), gap: 10)
+        eq(gv[0].position, 600, "with a gap the line sits in the middle of the gap"); eq(gv[0].start, 10, "and spans the windows, not the margins")
+        let cv = L.dividers(members: zones(cols))
+        eq(cv.count, 2, "three columns: two dividers"); eq(cv.map(\.position), [400, 800], "at the third marks")
+        let gd = L.dividers(members: zones(grid))
+        eq(gd.count, 2, "2x2 grid: one vertical and one horizontal"); eq(gd.filter { $0.axis == .vertical }.count, 1, "one vertical")
+        let gv0 = gd.first { $0.axis == .vertical }!, gh0 = gd.first { $0.axis == .horizontal }!
+        eq(gv0.before, [0, 2], "the vertical line has both left windows before it"); eq(gv0.after, [1, 3], "and both right windows after")
+        eq(gv0.start, 0, "full height"); eq(gv0.end, 800, "full height"); eq(gh0.position, 400, "horizontal line at mid height"); eq(gh0.start, 0, "full width"); eq(gh0.end, 1200, "full width")
+        let md = L.dividers(members: zones(main2))
+        eq(md.count, 2, "main + two stacked: a vertical and a horizontal divider")
+        let mh = md.first { $0.axis == .horizontal }!
+        eq(mh.start, 600, "the horizontal divider only spans the right column"); eq(mh.end, 1200, "(to the screen edge)")
+        let farApart: [Int: CGRect] = [0: CGRect(x: 0, y: 0, width: 400, height: 800), 1: CGRect(x: 700, y: 0, width: 500, height: 800)]
+        let noOverlap: [Int: CGRect] = [0: CGRect(x: 0, y: 0, width: 600, height: 300), 1: CGRect(x: 600, y: 500, width: 600, height: 300)]
+        eq(L.dividers(members: farApart).count, 0, "windows with a gap between them have no divider")
+        eq(L.dividers(members: noOverlap).count, 0, "windows that do not share vertical extent have no divider")
+        eq(L.dividers(members: [0: CGRect(x: 0, y: 0, width: 500, height: 500)]).count, 0, "a single window has none")
+        // dragging a divider
+        var r2 = L.dragDivider(members: zones(halves), divider: hv[0], to: 700)
+        eq(r2[0]!.maxX, 700, "dragging the divider to 700 moves the left window's edge"); eq(r2[1]!.minX, 700, "and the right window's")
+        r2 = L.dragDivider(members: zones(halves, gap: 10), divider: gv[0], to: 500, gap: 10)
+        eq(r2[1]!.minX - r2[0]!.maxX, 10, "the gap is kept while dragging"); eq((r2[0]!.maxX + r2[1]!.minX) / 2, 500, "and the line is where you put it")
+        r2 = L.dragDivider(members: zones(grid), divider: gv0, to: 800)
+        eq(r2[1]!.minX, 800, "grid: the whole vertical line moves"); eq(r2[2]!.maxX, 800, "including the lower left window"); eq(r2[3]!.minX, 800, "and the lower right")
+        r2 = L.dragDivider(members: zones(grid), divider: gh0, to: 300)
+        eq(r2[2]!.minY, 300, "grid: the horizontal line moves"); eq(r2[1]!.maxY, 300, "both rows follow")
+        r2 = L.dragDivider(members: zones(halves), divider: hv[0], to: 1190)
+        eq(r2[1]!.width, 120, "the divider stops where the right window reaches its minimum"); eq(r2[0]!.maxX, r2[1]!.minX, "still flush")
+        r2 = L.dragDivider(members: zones(halves), divider: hv[0], to: 10)
+        eq(r2[0]!.width, 120, "and where the left window reaches its minimum")
+        r2 = L.dragDivider(members: flush, divider: L.dividers(members: flush)[0], to: 900, minSizes: [1: CGSize(width: 700, height: 100)])
+        eq(r2[1]!, flush[1]!, "a window with a large real minimum is never overlapped"); eq(r2[0]!, flush[0]!, "the divider simply does not move")
+        // the divider line follows reality afterwards
+        let after = L.dividers(members: L.dragDivider(members: zones(halves), divider: hv[0], to: 700))
+        eq(after.count, 1, "still exactly one divider after dragging"); eq(after[0].position, 700, "now at the new position")
+    }
+
     // a missing zone does not break anything; no-op returns the same frames
     var sparse = zones(grid); sparse.removeValue(forKey: 3)
     new = sparse[0]!; new.size.width += 30

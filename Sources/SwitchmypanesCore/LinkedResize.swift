@@ -89,6 +89,70 @@ public enum LinkedResize {
     }
 }
 
+/// A divider between linked windows: the line you drag to resize the windows on both sides at once.
+public struct Divider: Equatable {
+    public enum Axis: Equatable { case vertical, horizontal }
+    public var axis: Axis
+    public var position: CGFloat      // the line itself: x for a vertical divider, y for a horizontal one (centre of the gap)
+    public var start: CGFloat         // how far the line extends (y range for a vertical divider, x range for a horizontal one)
+    public var end: CGFloat
+    public var before: [Int]          // windows left of / above the line
+    public var after: [Int]           // windows right of / below it
+}
+
+public extension LinkedResize {
+    /// Every divider in a group of windows. A divider exists where windows on both sides meet along a shared line
+    /// (a gap apart); windows that only touch the line on one side (an outer edge) have none.
+    static func dividers(members: [Int: CGRect], gap: CGFloat = 0, tolerance: CGFloat = 6) -> [Divider] {
+        var out = verticalDividers(members, gap: gap, tol: tolerance)
+        let transposedMembers = members.mapValues { CGRect(x: $0.minY, y: $0.minX, width: $0.height, height: $0.width) }
+        out += verticalDividers(transposedMembers, gap: gap, tol: tolerance).map { d in var h = d; h.axis = .horizontal; return h }
+        return out
+    }
+
+    /// Where every window goes when `divider` is dragged so that its line sits at `position`.
+    /// Limits (minimum sizes) apply, so the divider stops where a window cannot get any smaller.
+    static func dragDivider(members: [Int: CGRect], divider: Divider, to position: CGFloat, gap: CGFloat = 0,
+                            minSize: CGSize = defaultMinSize, minSizes: [Int: CGSize] = [:]) -> [Int: CGRect] {
+        guard let id = divider.before.first, var f = members[id] else { return members }
+        switch divider.axis {
+        case .vertical:   f.size.width = (position - gap / 2) - f.minX
+        case .horizontal: f.size.height = (position - gap / 2) - f.minY
+        }
+        return resolve(members: members, changed: id, newFrame: f, gap: gap, minSize: minSize, minSizes: minSizes)
+    }
+
+    private static func verticalDividers(_ frames: [Int: CGRect], gap: CGFloat, tol: CGFloat) -> [Divider] {
+        var lines: [CGFloat] = []
+        for f in frames.values where !lines.contains(where: { abs($0 - f.maxX) <= tol }) { lines.append(f.maxX) }
+        func connected(_ a: CGRect, _ b: CGRect) -> Bool { a.minY <= b.maxY + gap + tol && b.minY <= a.maxY + gap + tol }
+        var out: [Divider] = []
+        for L in lines.sorted() {
+            let R = L + gap
+            let before = frames.filter { abs($0.value.maxX - L) <= tol }.keys.sorted()
+            let after = frames.filter { abs($0.value.minX - R) <= tol }.keys.sorted()
+            guard !before.isEmpty, !after.isEmpty else { continue }
+            var unseen = Set(before + after)
+            while let seed = unseen.min() {
+                var comp: Set<Int> = [seed], grew = true
+                while grew {
+                    grew = false
+                    for id in unseen where !comp.contains(id) && comp.contains(where: { connected(frames[$0]!, frames[id]!) }) {
+                        comp.insert(id); grew = true
+                    }
+                }
+                unseen.subtract(comp)
+                let b = before.filter(comp.contains), a = after.filter(comp.contains)
+                guard !b.isEmpty, !a.isEmpty else { continue }
+                let rects = comp.map { frames[$0]! }
+                out.append(Divider(axis: .vertical, position: L + gap / 2, start: rects.map(\.minY).min()!,
+                                   end: rects.map(\.maxY).max()!, before: b, after: a))
+            }
+        }
+        return out
+    }
+}
+
 /// Learning an app's REAL minimum size from how it reacts to being asked to shrink.
 /// A single "still too big" reading proves nothing (some apps apply a resize a moment late), so a window must be
 /// bigger than asked on `confirmations` checks in a row before its size is accepted as a minimum.
