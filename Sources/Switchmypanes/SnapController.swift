@@ -83,6 +83,21 @@ final class SnapController {
         motion.play(from: animateFrom ?? preFrame, to: target)
     }
 
+    /// Snaps a window chosen elsewhere (for example from the switcher's right-click menu) to a zone. False if it cannot be
+    /// done: not on this desktop, snapping off, the app excluded from snapping, or the window cannot be reached.
+    @discardableResult
+    func snap(_ info: WindowInfo, to zone: SnapZone) -> Bool {
+        guard info.isOnCurrentSpace, settings.snapEnabled,
+              !AppExclusions.isExcluded(bundleID: info.bundleID, for: .snapping, in: settings.appExclusions),
+              let window = AXWindowFinder(ids: ids).find(pid: info.pid, windowID: info.id, frame: info.frame, title: info.title),
+              let display = DisplayProvider.layout().display(containing: info.frame) else { return false }
+        onBeforeSnap()
+        let target = SnapEngine.frame(for: zone, in: display.visibleFrame, gap: CGFloat(settings.gap))
+        place(window: window, pid: info.pid, target: target, on: display, preFrame: info.frame)
+        onSnapped(zone, display, info.pid, info.id, target, window)         // lets Snap Assist offer the other half
+        return true
+    }
+
     /// Called when a window was dragged to an edge.
     func snapDragged(window: AXUIElement, pid: pid_t, to zone: SnapZone, on display: DisplayInfo, preDragFrame: CGRect, releasedAt: CGRect? = nil) {
         onBeforeSnap()

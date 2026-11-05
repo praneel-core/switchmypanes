@@ -35,6 +35,18 @@ public enum AppExclusions {
         list.contains { $0.pattern.lowercased() == pattern.lowercased() } ? list : list + [AppExclusion(pattern: pattern)]
     }
 
+    /// "Hide this app from the switcher" (from the tile menu): the app's switcher exclusion is switched on. If it is already
+    /// in the list its snapping choice is left as it was; a brand-new entry hides it from the switcher only.
+    public static func hidingFromSwitcher(_ pattern: String, in list: [AppExclusion]) -> [AppExclusion] {
+        var out = list
+        if let i = out.firstIndex(where: { $0.pattern.lowercased() == pattern.lowercased() }) {
+            out[i].inSwitcher = true
+        } else {
+            out.append(AppExclusion(pattern: pattern, inSwitcher: true, inSnapping: false))
+        }
+        return out
+    }
+
     // Saved as JSON in UserDefaults. A corrupt or missing value simply means "no exclusions".
     public static func encode(_ list: [AppExclusion]) -> Data? { try? JSONEncoder().encode(list) }
     public static func decode(_ data: Data?) -> [AppExclusion] {

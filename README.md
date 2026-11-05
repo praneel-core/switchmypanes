@@ -67,6 +67,8 @@ switches, and the overlay never takes keyboard focus until you commit. It can al
   exact window, even if the same app also has a window on your current desktop.
 - **Minimized windows and windows of hidden (Cmd+H) apps**, tagged "Minimized" / "Hidden"; choosing one restores it.
 
+**Right-click a tile** for a menu: switch to it, close it, minimize it, snap it (left half, right half, maximize), or hide its app from the switcher. Right-clicking *pins* the overlay open so you can use the menu after letting go of Option. Minimize and snap are greyed out for windows on another desktop (they need the window on this desktop).
+
 Apps that "close" a window to the background without destroying it (Claude, Slack, …) and helper windows that are not
 real windows are not listed. Each kind can be switched off in Preferences.
 
@@ -171,7 +173,7 @@ XCTest is not available with only the Command Line Tools, so the logic checks ar
 1. **Setup**: `./build.sh install`, grant the permissions; the checklist should say the shortcuts are active.
 2. **Switcher**: with 4+ windows in 2+ apps, hold Option and tap Tab: the second window is preselected; Tab, Shift+Tab and the arrows move; releasing Option switches; Esc cancels; clicking a tile switches. Two quick taps toggle between the last two windows.
 3. **Search**: open the switcher with several windows and just start typing: a search field appears and only matching windows stay (try part of an app name, then part of a title, then two words); ⌫ deletes a letter, Esc clears the search, a second Esc cancels; a search with no match shows "No windows match" and releasing Option just closes it.
-4. **Close**: hover a tile and click ✕, or press ⌘W: the window closes and the overlay re-flows. A TextEdit document with unsaved text keeps its tile (the save sheet appears).
+4. **Close and the tile menu**: right-click a tile: the menu appears and the overlay stays open after you release Option; try Switch, Minimize, Snap > Right half and Hide; for a window on another desktop minimize and snap are greyed out. Then hover a tile and click ✕, or press ⌘W: the window closes and the overlay re-flows. A TextEdit document with unsaved text keeps its tile (the save sheet appears).
 5. **Minimized / hidden**: minimize a window and hide another app (Cmd+H): both appear tagged; choosing one brings it back.
 6. **Desktops**: put an app full screen and keep another of its windows on your main desktop. From the main desktop open the switcher and pick the full-screen one (and back): the slide animation plays, the right window is in front, and no Mission Control or Dock UI lingers.
 7. **Previews**: work in two windows for a few seconds each, switch desktop, open the switcher: both have pictures. Add an app to "never take previews": its tile shows only the icon.

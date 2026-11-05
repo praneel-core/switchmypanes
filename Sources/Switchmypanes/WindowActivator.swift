@@ -116,4 +116,12 @@ final class WindowActivator {
               let button = AX.element(window, kAXCloseButtonAttribute) else { return false }
         return AXUIElementPerformAction(button, kAXPressAction as CFString) == .success
     }
+
+    /// Minimizes a window on the current desktop through Accessibility. Returns false if it cannot be found.
+    @discardableResult
+    func minimize(_ info: WindowInfo) -> Bool {
+        guard info.isOnCurrentSpace,
+              let window = finder.find(pid: info.pid, windowID: info.id, frame: info.frame, title: info.title) else { return false }
+        return AXUIElementSetAttributeValue(window, kAXMinimizedAttribute as CFString, kCFBooleanTrue) == .success
+    }
 }

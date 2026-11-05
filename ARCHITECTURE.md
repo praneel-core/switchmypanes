@@ -111,6 +111,9 @@ are dropped too.
 ### Type to search
 While the overlay is open the listener reads the typed character (`NSEvent(cgEvent:).charactersIgnoringModifiers`, so Option does not change a letter) and passes it to `KeyClassifier` (`typed:`), which returns `switcherType` / `switcherBackspace` / `switcherEscape`; Command or Control shortcuts are never typing, and ⌘W closes the highlighted window. `SwitcherController` keeps the full window list and the query separately and re-filters with `WindowSearch`; the query lives only in memory and is cleared when the overlay closes. The characters are read ONLY while the switcher is open (`delegate.switcherActive`). `--selftest-search` drives the whole flow, including the real key-to-character conversion.
 
+### The tile right-click menu
+`WindowTileView.rightMouseDown` -> `SwitcherController.showContextMenu`: the overlay is PINNED while the menu is up (the watchdog stops committing on key release, and `isCapturingKeys` is false so the event tap passes the menu's keys through). Every menu action ends the overlay; dismissing the menu ends it too unless the switcher key is still held. Snap goes through `SnapController.snap` (which respects the snapping exclusions and the current-desktop rule), minimize through `WindowActivator.minimize`, hide through `AppExclusions.hidingFromSwitcher` (Core, tested). `--selftest-menu` and `--selftest-menu-popup` cover the logic and the real pop-up.
+
 ### Going to a window on another desktop
 `WindowActivator`: (1) `SpaceProvider.switchToSpace` presses the user's "Move left/right a space" shortcut once per
 desktop to cross, and waits until macOS has really arrived; (2) `WindowFocusProvider` focuses that exact window; (3) the

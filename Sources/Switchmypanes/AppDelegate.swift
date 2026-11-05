@@ -46,6 +46,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, KeyboardMonitorDelegat
         monitor.delegate = self
         monitor.isSuspended = { [settings] in settings.isRecordingShortcut }
         switcher.requiredModifierFlags = { [settings] in settings.switcherModifier.cgFlags }
+        switcher.snapWindow = { [weak self] info, zone in self?.snapper.snap(info, to: zone) ?? false }
+        switcher.excludeFromSwitcher = { [settings] info in
+            if let id = info.bundleID { settings.appExclusions = AppExclusions.hidingFromSwitcher(id, in: settings.appExclusions) }
+        }
         monitor.configProvider = { [settings] in settings.config }
         thumbnails.isAllowed = { [weak self] id in
             guard let self else { return true }
@@ -136,7 +140,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, KeyboardMonitorDelegat
 
     // MARK: KeyboardMonitorDelegate
 
-    var switcherActive: Bool { switcher.isActive }
+    /// (While the right-click menu is open the overlay is pinned and the listener must not swallow the menu's keys.)
+    var switcherActive: Bool { switcher.isCapturingKeys }
     var pickerActive: Bool { picker.isActive || assist.isActive }
     var pickerAssistMode: Bool { assist.isActive }
 

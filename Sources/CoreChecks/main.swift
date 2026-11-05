@@ -484,6 +484,11 @@ do {
     check(!AppExclusions.isExcluded(bundleID: "com.apple.calculator", for: .switcher, in: []), "empty list")
     eq(AppExclusions.adding("com.foo.bar", to: []).count, 1, "add"); eq(AppExclusions.adding("COM.FOO.BAR", to: AppExclusions.adding("com.foo.bar", to: [])).count, 1, "no duplicates")
     eq(AppExclusions.decode(AppExclusions.encode(list)), list, "survives saving and loading")
+    let hidden = AppExclusions.hidingFromSwitcher("com.foo.bar", in: [])
+    eq(hidden, [AppExclusion(pattern: "com.foo.bar", inSwitcher: true, inSnapping: false)], "hide from the switcher: a new entry hides it from the switcher only (snapping is untouched)")
+    eq(AppExclusions.hidingFromSwitcher("COM.FOO.BAR", in: [AppExclusion(pattern: "com.foo.bar", inSwitcher: false, inSnapping: true)]),
+       [AppExclusion(pattern: "com.foo.bar", inSwitcher: true, inSnapping: true)], "an existing 'never snap' entry also gets 'hide from switcher', keeping its snapping choice")
+    eq(AppExclusions.hidingFromSwitcher("com.foo.bar", in: hidden), hidden, "doing it twice changes nothing")
     eq(AppExclusions.decode(nil), [], "missing data"); eq(AppExclusions.decode(Data("garbage".utf8)), [], "corrupt data")
     check(BundlePattern.matches("com.a.*", bundleID: "com.a.b.c") && !BundlePattern.matches("com.a.*", bundleID: "com.ab"), "wildcard needs the dot")
 }

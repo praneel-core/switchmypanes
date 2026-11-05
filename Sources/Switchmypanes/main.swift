@@ -11,6 +11,10 @@ if CommandLine.arguments.contains("--help") || CommandLine.arguments.contains("-
                                 whether a preview could be captured), then exit. No side effects.
           --exclude=<bundle id> also apply a "hide from switcher" exclusion (repeatable), to test the rule.
       --render-overlay <folder> draw the overlays offscreen with sample windows into PNG files (no side effects).
+      --selftest-menu-popup     open the real overlay and the real right-click menu for about a second, cancel it, and check it unwinds.
+                                WARNING: the overlay and a menu flash on your screen. Prints PASS / FAIL.
+      --selftest-menu           check the right-click menu on a tile: what it offers, what is greyed out, what each item does.
+                                Nothing is shown. Prints PASS / FAIL.
       --selftest-search         drive the type-to-search flow of the real controller step by step (nothing is drawn). Prints PASS / FAIL.
       --selftest-arrows         check that Down / Up pick the tile that is really drawn below / above, for every window count
                                 (offscreen, no side effects). Prints PASS / FAIL.
@@ -47,6 +51,30 @@ if CommandLine.arguments.contains("--selftest-search") {
     MainActor.assumeIsolated {
         _ = NSApplication.shared
         ok = OverlayPreview.verifySearchFlow()
+        print(ok ? "PASS" : "FAIL")
+    }
+    exit(ok ? 0 : 1)
+}
+
+// `Switchmypanes --selftest-menu`: checks the right-click menu on a tile (nothing is shown).
+if CommandLine.arguments.contains("--selftest-menu") {
+    var ok = false
+    MainActor.assumeIsolated {
+        _ = NSApplication.shared
+        ok = OverlayPreview.verifyContextMenu()
+        print(ok ? "PASS" : "FAIL")
+    }
+    exit(ok ? 0 : 1)
+}
+
+// `Switchmypanes --selftest-menu-popup`: opens the real overlay and the real right-click menu briefly, then checks it unwinds.
+if CommandLine.arguments.contains("--selftest-menu-popup") {
+    var ok = false
+    MainActor.assumeIsolated {
+        let app = NSApplication.shared
+        app.setActivationPolicy(.accessory)
+        app.finishLaunching()
+        ok = OverlayPreview.verifyMenuPopup()
         print(ok ? "PASS" : "FAIL")
     }
     exit(ok ? 0 : 1)

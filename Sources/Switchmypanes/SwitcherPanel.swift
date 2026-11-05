@@ -58,6 +58,7 @@ final class WindowTileView: NSView {
     var onClick: ((Int) -> Void)?
     var onHover: ((Int) -> Void)?
     var onClose: ((Int) -> Void)?
+    var onContextMenu: ((Int, NSEvent) -> Void)?
 
     var isSelected = false { didSet { refreshAppearance() } }
 
@@ -155,6 +156,7 @@ final class WindowTileView: NSView {
     }
 
     override func mouseDown(with event: NSEvent) { onClick?(index) }
+    override func rightMouseDown(with event: NSEvent) { onContextMenu?(index, event) }
     override func mouseMoved(with event: NSEvent) { onHover?(index) }
     override func mouseEntered(with event: NSEvent) { onHover?(index); setCloseVisible(true) }
     override func mouseExited(with event: NSEvent) { setCloseVisible(false) }
@@ -191,6 +193,7 @@ final class SwitcherPanel: NSPanel {
     var onClick: ((Int) -> Void)?
     var onHover: ((Int) -> Void)?
     var onClose: ((Int) -> Void)?
+    var onContextMenu: ((Int, NSEvent) -> Void)?
 
     init() {
         super.init(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: true)
@@ -248,6 +251,7 @@ final class SwitcherPanel: NSPanel {
             let v = WindowTileView(frame: NSRect(origin: origin, size: tile), index: i, info: w, thumbnail: thumbnail(w.id))
             v.onClick = { [weak self] in self?.onClick?($0) }
             v.onClose = { [weak self] in self?.onClose?($0) }
+            v.onContextMenu = { [weak self] idx, event in self?.onContextMenu?(idx, event) }
             v.onHover = { [weak self] idx in self?.hoverIfMouseMoved(idx) }
             glass.content.addSubview(v)
             tiles.append(v)

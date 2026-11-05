@@ -12,6 +12,13 @@ final class SwitcherController {
     /// The modifier flags that must stay held for the overlay to stay open (the configured switcher modifier).
     var requiredModifierFlags: () -> CGEventFlags = { .maskAlternate }
     private(set) var isActive = false
+    /// While the right-click menu is open the overlay is "pinned": it stays up even if Option is released, and the keyboard
+    /// listener steps aside so the menu's own keys work.
+    private(set) var isPinned = false
+    var isCapturingKeys: Bool { isActive && !isPinned }
+    /// Set by the app: snap a window to a zone / hide an app from the switcher (the menu's actions).
+    var snapWindow: (WindowInfo, SnapZone) -> Bool = { _, _ in false }
+    var excludeFromSwitcher: (WindowInfo) -> Void = { _ in }
     private var fullList: [WindowInfo] = []        // every window (most recently used first), before searching
     private var windows: [WindowInfo] = []         // what is shown: the list filtered by the query
     private var query = ""                          // what you have typed while the overlay is open; kept in memory only
@@ -32,6 +39,7 @@ final class SwitcherController {
         panel.onClick = { [weak self] index in self?.clicked(index) }
         panel.onHover = { [weak self] index in self?.hovered(index) }
         panel.onClose = { [weak self] index in self?.close(at: index) }
+        panel.onContextMenu = { [weak self] index, event in self?.showContextMenu(for: index, event: event) }
     }
 
     func begin(reverse: Bool) {
@@ -183,6 +191,85 @@ final class SwitcherController {
     private func clicked(_ index: Int) { guard isActive else { return }; selection.select(index); commit() }
     private func hovered(_ index: Int) { guard isActive else { return }; selection.select(index); updateSelection() }
 
+    // MARK: right-click menu on a tile
+
+    private final class MenuAction: NSMenuItem {
+        private let handler: () -> Void
+        init(_ title: String, enabled: Bool = true, handler: @escaping () -> Void) {
+            self.handler = handler
+            super.init(title: title, action: #selector(run), keyEquivalent: "")
+            target = self
+            isEnabled = enabled
+        }
+        required init(coder: NSCoder) { fatalError() }
+        @objc func run() { handler() }
+    }
+
+    private func shortened(_ s: String, _ n: Int = 34) -> String { s.count > n ? String(s.prefix(n - 1)) + "…" : s }
+
+    /// What the menu offers for a window. Actions that need the window on THIS desktop are greyed out for other desktops.
+    private func makeMenu(for info: WindowInfo) -> NSMenu {
+        let menu = NSMenu()
+        menu.autoenablesItems = false
+        let here = info.isOnCurrentSpace
+        let canSnap = here && !AppExclusions.isExcluded(bundleID: info.bundleID, for: .snapping, in: SettingsStore.shared.appExclusions) && SettingsStore.shared.snapEnabled
+        func act(_ then: @escaping () -> Void) -> () -> Void { { [weak self] in self?.menuActionTaken = true; then(); self?.end() } }
+
+        menu.addItem(MenuAction("Switch to “\(shortened(info.title))”", handler: act { [weak self] in
+            self?.activator.activate(info); self?.inventory.markUsed(info.id) }))
+        menu.addItem(.separator())
+        menu.addItem(MenuAction("Close window", handler: act { [weak self] in _ = self?.activator.close(info) }))
+        menu.addItem(MenuAction("Minimize", enabled: here, handler: act { [weak self] in _ = self?.activator.minimize(info) }))
+        let snap = NSMenuItem(title: "Snap", action: nil, keyEquivalent: "")
+        let sub = NSMenu(); sub.autoenablesItems = false
+        for (title, zone) in [("Left half", SnapZone.left), ("Right half", .right), ("Maximize", .maximize)] {
+            sub.addItem(MenuAction(title, enabled: canSnap, handler: act { [weak self] in _ = self?.snapWindow(info, zone) }))
+        }
+        snap.submenu = sub; snap.isEnabled = canSnap
+        menu.addItem(snap)
+        menu.addItem(.separator())
+        menu.addItem(MenuAction("Hide “\(info.appName)” from the switcher", enabled: info.bundleID != nil,
+                                handler: act { [weak self] in self?.excludeFromSwitcher(info) }))
+        return menu
+    }
+
+    private var menuActionTaken = false
+
+    private func showContextMenu(for index: Int, event: NSEvent) {
+        guard isActive, !isPinned, index >= 0, index < windows.count else { return }
+        selection.select(index); updateSelection()
+        isPinned = true; menuActionTaken = false
+        let menu = makeMenu(for: windows[index])
+        if let after = debugMenuAutoCancelAfter { DispatchQueue.main.asyncAfter(deadline: .now() + after) { menu.cancelTracking() } }
+        NSMenu.popUpContextMenu(menu, with: event, for: panel.contentView ?? NSView())      // returns when the menu closes
+        isPinned = false
+        // Dismissed without choosing: carry on only if the key is still held, otherwise the overlay has nothing to wait for.
+        if isActive && !menuActionTaken && !CGEventSource.flagsState(.combinedSessionState).contains(requiredModifierFlags()) { end() }
+    }
+
+    // test seam (`--selftest-menu`)
+    func debugMenu(for info: WindowInfo) -> [(title: String, enabled: Bool)] {
+        var out: [(String, Bool)] = []
+        for item in makeMenu(for: info).items where !item.isSeparatorItem {
+            if let sub = item.submenu { for s in sub.items { out.append(("\(item.title) ▸ \(s.title)", s.isEnabled)) } } else { out.append((item.title, item.isEnabled)) }
+        }
+        return out
+    }
+    func debugPerform(_ title: String, for info: WindowInfo) {
+        var flat: [(String, NSMenuItem)] = []
+        for item in makeMenu(for: info).items where !item.isSeparatorItem {
+            if let sub = item.submenu { for s in sub.items { flat.append(("\(item.title) ▸ \(s.title)", s)) } } else { flat.append((item.title, item)) }
+        }
+        if let item = flat.first(where: { $0.0 == title })?.1, item.isEnabled, let target = item.target, let action = item.action { _ = target.perform(action) }
+    }
+    func debugSetPinned(_ pinned: Bool) { isPinned = pinned }
+    var debugMenuAutoCancelAfter: TimeInterval?
+    func debugShow() { showPanel() }
+    var debugPanelVisible: Bool { panel.isVisible }
+    func debugContextMenu(on index: Int, event: NSEvent) { showContextMenu(for: index, event: event) }
+    var debugPanelWindowNumber: Int { panel.windowNumber }
+    var debugPanelCenter: NSPoint { NSPoint(x: panel.frame.midX, y: panel.frame.midY) }
+
     private func end() {
         showWork?.cancel(); showWork = nil
         watchdog?.invalidate(); watchdog = nil
@@ -200,7 +287,9 @@ final class SwitcherController {
             MainActor.assumeIsolated {
                 guard let self, self.isActive else { return }
                 let flags = CGEventSource.flagsState(.combinedSessionState)
-                if !flags.contains(self.requiredModifierFlags()) {
+                if self.isPinned {
+                    if Date().timeIntervalSince(self.startedAt) > 120 { self.cancel() }      // (a menu left open for two minutes)
+                } else if !flags.contains(self.requiredModifierFlags()) {
                     // The user let go of the switcher modifier while the event tap did not report it.
                     // The mouse-click path also ends the session, so only commit here.
                     self.commit()

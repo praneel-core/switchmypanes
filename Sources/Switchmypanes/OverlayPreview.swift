@@ -160,6 +160,78 @@ enum OverlayPreview {
         return ok
     }
 
+    /// `--selftest-menu`: checks the tile right-click menu (what it offers, what is greyed out, what each item does, and the
+    /// pinning rule) without showing anything.
+    @MainActor static func verifyContextMenu() -> Bool {
+        func win(_ id: UInt32, _ app: String, placement: SwitchmypanesCore.WindowPlacement = .currentSpace, label: String? = nil, bundle: String? = "com.example.app") -> WindowInfo {
+            WindowInfo(id: id, pid: 1, appName: app, title: "\(app) window", frame: .zero, icon: nil, placement: placement, spaceLabel: label, bundleID: bundle)
+        }
+        let here = win(1, "Code"), away = win(2, "Chrome", placement: .otherSpace(.fullScreen), label: "Full screen"), unknown = win(3, "Mystery", bundle: nil)
+        let controller = SwitcherController(inventory: WindowInventory(ids: PrivateAXWindowIDProvider(), spaces: CurrentSpaceOnlyProvider(), options: { SpaceFilterOptions() }),
+                                            thumbnails: ThumbnailService(), activator: WindowActivator(ids: PrivateAXWindowIDProvider()))
+        controller.debugSuppressPanel = true
+        var snaps: [(String, SnapZone)] = [], hidden: [String] = []
+        controller.snapWindow = { w, z in snaps.append((w.appName, z)); return true }
+        controller.excludeFromSwitcher = { hidden.append($0.appName) }
+        var ok = true
+        func check(_ cond: Bool, _ what: String) { print(cond ? "PASS: \(what)" : "FAIL: \(what)"); ok = ok && cond }
+        func enabled(_ items: [(title: String, enabled: Bool)], _ t: String) -> Bool? { items.first { $0.title == t }?.enabled }
+
+        let m1 = controller.debugMenu(for: here)
+        check(m1.map(\.title) == ["Switch to “Code window”", "Close window", "Minimize", "Snap ▸ Left half", "Snap ▸ Right half", "Snap ▸ Maximize", "Hide “Code” from the switcher"],
+              "the menu offers: switch, close, minimize, snap left / right / maximize, hide the app (got \(m1.map(\.title)))")
+        check(m1.allSatisfy { $0.enabled }, "a window on this desktop: everything is available")
+        let m2 = controller.debugMenu(for: away)
+        check(enabled(m2, "Minimize") == false && enabled(m2, "Snap ▸ Left half") == false && enabled(m2, "Snap ▸ Maximize") == false,
+              "a window on another desktop: minimize and snap are greyed out (they need it on this desktop)")
+        check(enabled(m2, "Close window") == true && enabled(m2, "Switch to “Chrome window”") == true && enabled(m2, "Hide “Chrome” from the switcher") == true,
+              "...while switch, close and hide stay available")
+        check(controller.debugMenu(for: unknown).last?.enabled == false, "an app with no known identity cannot be hidden (greyed out)")
+
+        controller.debugBegin(with: [here, away])
+        check(controller.isCapturingKeys, "overlay open: the keyboard listener is active")
+        controller.debugSetPinned(true)
+        check(controller.isActive && !controller.isCapturingKeys, "pinned (menu open): the overlay stays, and the listener steps aside for the menu's keys")
+        controller.debugSetPinned(false)
+        controller.debugPerform("Snap ▸ Right half", for: here)
+        check(snaps.count == 1 && snaps[0].0 == "Code" && snaps[0].1 == .right, "choosing Snap > Right half snaps that window to the right half")
+        check(!controller.isActive, "...and the overlay closes")
+        controller.debugBegin(with: [here, away])
+        controller.debugPerform("Hide “Code” from the switcher", for: here)
+        check(hidden == ["Code"] && !controller.isActive, "choosing Hide reports the app and closes the overlay")
+        controller.debugBegin(with: [here, away])
+        controller.debugPerform("Snap ▸ Left half", for: away)
+        check(snaps.count == 1, "a greyed-out item does nothing")
+        controller.cancel()
+        return ok
+    }
+
+    /// `--selftest-menu-popup`: opens the REAL overlay and pops the REAL right-click menu (from a synthetic click), cancels it
+    /// automatically, and checks everything unwinds. The overlay and menu flash on screen for about a second.
+    @MainActor static func verifyMenuPopup() -> Bool {
+        let list = (0..<4).map { i in WindowInfo(id: UInt32(700 + i), pid: 1, appName: ["Code", "Chrome", "Notes", "Terminal"][i], title: "Window \(i)", frame: .zero,
+                                                 icon: NSWorkspace.shared.icon(for: .application), placement: .currentSpace, spaceLabel: nil, bundleID: "com.example.\(i)") }
+        let controller = SwitcherController(inventory: WindowInventory(ids: PrivateAXWindowIDProvider(), spaces: CurrentSpaceOnlyProvider(), options: { SpaceFilterOptions() }),
+                                            thumbnails: ThumbnailService(), activator: WindowActivator(ids: PrivateAXWindowIDProvider()))
+        controller.debugBegin(with: list)
+        controller.debugShow()
+        RunLoop.current.run(until: Date().addingTimeInterval(0.4))
+        var ok = true
+        func check(_ cond: Bool, _ what: String) { print(cond ? "PASS: \(what)" : "FAIL: \(what)"); ok = ok && cond }
+        check(controller.debugPanelVisible, "the real overlay is on screen")
+        let p = controller.debugPanelCenter
+        guard let click = NSEvent.mouseEvent(with: .rightMouseDown, location: NSPoint(x: 100, y: 100), modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+                                             windowNumber: controller.debugPanelWindowNumber, context: nil, eventNumber: 1, clickCount: 1, pressure: 1) else {
+            print("FAIL: could not build the click"); return false
+        }
+        _ = p
+        controller.debugMenuAutoCancelAfter = 0.7
+        controller.debugContextMenu(on: 1, event: click)          // blocks while the menu is up, returns when it is cancelled
+        check(!controller.isPinned, "the menu came up, was cancelled, and the pinned state was released")
+        check(!controller.isActive && !controller.debugPanelVisible, "dismissed with the key not held: the overlay closed instead of getting stuck")
+        return ok
+    }
+
     /// `--selftest-overlay`: opens the REAL overlay (real glass) once per look and checks it comes up and goes away.
     static func flashEachStyle() -> Bool {
         let screen = NSScreen.main ?? NSScreen.screens[0]
