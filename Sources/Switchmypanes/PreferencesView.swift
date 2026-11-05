@@ -18,6 +18,8 @@ struct PreferencesView: View {
             }
             Section("Snapping") {
                 Toggle("Keyboard snapping", isOn: $settings.snapEnabled)
+                Toggle("Drag a window to a screen edge or corner to snap it", isOn: $settings.dragSnapEnabled)
+                    .disabled(!settings.snapEnabled)
                 HStack {
                     Text("Shortcut modifiers")
                     Spacer()
@@ -38,7 +40,7 @@ struct PreferencesView: View {
                     Text("Gap between windows: \(Int(settings.gap)) pt")
                     Slider(value: $settings.gap, in: 0...24, step: 1)
                 }
-                Text("Modifier + Left / Right = half, Up = maximize, Down = restore or minimize. Left then Up = top-left quarter, and so on. Add Shift to move the window to another display.")
+                Text("Modifier + Left / Right = half, Up = maximize, Down = restore or minimize. Left then Up = top-left quarter, and so on. Add Shift to move the window to another display. Dragging: left / right edge = half, top edge = maximize, corners = quarters.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section {

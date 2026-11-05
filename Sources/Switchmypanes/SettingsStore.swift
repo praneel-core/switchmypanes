@@ -9,6 +9,8 @@ final class SettingsStore: ObservableObject {
 
     @Published var switcherEnabled: Bool { didSet { d.set(switcherEnabled, forKey: "switcherEnabled") } }
     @Published var snapEnabled: Bool { didSet { d.set(snapEnabled, forKey: "snapEnabled") } }
+    /// Drag a window to a screen edge or corner to snap it.
+    @Published var dragSnapEnabled: Bool { didSet { d.set(dragSnapEnabled, forKey: "dragSnapEnabled") } }
     /// Modifier combination for snapping (Control+Option by default). Stored as the raw bit set.
     @Published var snapModifiers: ShortcutModifiers { didSet { d.set(snapModifiers.rawValue, forKey: "snapModifiers") } }
     /// Space in points between snapped windows and the screen edge.
@@ -17,10 +19,11 @@ final class SettingsStore: ObservableObject {
     @Published var paused = false
 
     private init() {
-        d.register(defaults: ["switcherEnabled": true, "snapEnabled": true, "gap": 0.0,
+        d.register(defaults: ["switcherEnabled": true, "snapEnabled": true, "dragSnapEnabled": true, "gap": 0.0,
                               "snapModifiers": ShortcutModifiers([.control, .option]).rawValue])
         switcherEnabled = d.bool(forKey: "switcherEnabled")
         snapEnabled = d.bool(forKey: "snapEnabled")
+        dragSnapEnabled = d.bool(forKey: "dragSnapEnabled")
         snapModifiers = ShortcutModifiers(rawValue: d.integer(forKey: "snapModifiers"))
         gap = d.double(forKey: "gap")
     }
@@ -31,7 +34,7 @@ final class SettingsStore: ObservableObject {
     }
 
     func resetToDefaults() {
-        switcherEnabled = true; snapEnabled = true; gap = 0
+        switcherEnabled = true; snapEnabled = true; dragSnapEnabled = true; gap = 0
         snapModifiers = [.control, .option]
     }
 }

@@ -98,6 +98,26 @@ do {
     eq(SnapEngine.moveTransition(from: .left, key: .left, hasDisplayLeft: false, hasDisplayRight: false), .none, "no display to move to")
 }
 
+section("Drag to edge")
+do {
+    let d = CGRect(x: 0, y: 0, width: 1440, height: 900)
+    func z(_ x: CGFloat, _ y: CGFloat, l: Bool = true, r: Bool = true) -> SnapZone? {
+        SnapEngine.dragZone(at: CGPoint(x: x, y: y), in: d, leftIsSnapEdge: l, rightIsSnapEdge: r)
+    }
+    eq(z(700, 450), nil, "middle of the screen")
+    eq(z(2, 450), .left, "left edge"); eq(z(1438, 450), .right, "right edge")
+    eq(z(700, 1), .maximize, "top edge"); eq(z(700, 899), nil, "bottom edge has no zone")
+    eq(z(2, 2), .topLeft, "top-left corner"); eq(z(1438, 2), .topRight, "top-right corner")
+    eq(z(2, 898), .bottomLeft, "bottom-left corner"); eq(z(1438, 898), .bottomRight, "bottom-right corner")
+    eq(z(2, 60), .topLeft, "left edge near the top counts as the corner")
+    eq(z(40, 1), .topLeft, "top edge near the left counts as the corner")
+    eq(z(2, 300), .left, "left edge below the corner zone")
+    eq(z(2, 450, l: false), nil, "left edge shared with another display: not a snap edge")
+    eq(z(2, 1, l: false), .maximize, "top-left with shared left edge falls back to maximize")
+    eq(z(1438, 450, r: false), nil, "right edge shared with another display")
+    eq(z(10, 450), nil, "just outside the 6 pt edge band")
+}
+
 section("Restore memory")
 do {
     var m = RestoreMemory<Int>()

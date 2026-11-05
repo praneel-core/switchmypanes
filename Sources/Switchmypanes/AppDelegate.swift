@@ -11,6 +11,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, KeyboardMonitorDelegat
     private lazy var activator = WindowActivator(ids: ids)
     private lazy var switcher = SwitcherController(inventory: inventory, thumbnails: thumbnails, activator: activator)
     private lazy var snapper = SnapController(settings: settings, ids: ids)
+    private lazy var dragSnapper = DragSnapController(settings: settings, ids: ids, snapper: snapper)
     private let monitor = KeyboardMonitor()
     private lazy var statusItem = StatusItemController(settings: settings)
     private lazy var onboarding = OnboardingWindowController(keyboardActive: { [weak self] in self?.monitor.isRunning ?? false })
@@ -31,6 +32,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, KeyboardMonitorDelegat
         monitor.delegate = self
         monitor.configProvider = { [settings] in settings.config }
         inventory.startTracking()
+        dragSnapper.start()
 
         if !monitor.start() || !PermissionManager.current().shortcutsReady {
             onboarding.show()
@@ -45,6 +47,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, KeyboardMonitorDelegat
     func applicationWillTerminate(_ notification: Notification) {
         switcher.cancel()
         monitor.stop()
+        dragSnapper.stop()
         inventory.stopTracking()
     }
 
@@ -55,7 +58,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, KeyboardMonitorDelegat
     private func setPaused(_ paused: Bool) {
         settings.paused = paused
         monitor.isPaused = paused
-        if paused { switcher.cancel() }
+        if paused { switcher.cancel(); dragSnapper.reset() }
     }
 
     private func showPreferences() {

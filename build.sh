@@ -2,6 +2,7 @@
 # Builds build/Switchmypanes.app from the command line.
 #   ./build.sh            build + sign
 #   ./build.sh run        build, sign, and launch
+#   ./build.sh install    build, sign, copy to ~/Applications (Spotlight finds it there) and relaunch
 #   SIGN_IDENTITY="Some Identity" ./build.sh    use a different signing identity
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -40,4 +41,14 @@ if [[ "${1:-}" == "run" ]]; then
     pkill -x "$APP_NAME" 2>/dev/null || true
     sleep 0.5
     open "$APP"
+fi
+
+if [[ "${1:-}" == "install" ]]; then
+    pkill -x "$APP_NAME" 2>/dev/null || true
+    sleep 0.5
+    mkdir -p "$HOME/Applications"
+    rm -rf "$HOME/Applications/$APP_NAME.app"
+    cp -R "$APP" "$HOME/Applications/"
+    echo "✓ Installed to ~/Applications/$APP_NAME.app"
+    open "$HOME/Applications/$APP_NAME.app"
 fi

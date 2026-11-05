@@ -9,6 +9,8 @@ Free, local only: no accounts, no network calls, no analytics. Phase 1 of 3: see
   Hold Option, tap Tab / Shift+Tab (or use the arrow keys) to move, release Option to switch, Esc to cancel,
   or click a window. The second window is preselected, so a quick tap toggles between your last two windows.
   Cmd+Tab is untouched.
+- **Drag to snap**: drag a window by its title bar to the left or right edge (half), top edge (maximize) or a corner
+  (quarter). A translucent preview shows where it will land; release to snap. Edges shared with another display are ignored.
 - **Snapping** with **Control+Option+Arrow**: Left / Right = half, Up = maximize, Down = restore (or minimize if
   not snapped). Left then Up = top-left quarter, etc. Add **Shift** to move the window to another display.
   The modifiers and a gap between windows are configurable in Preferences.
@@ -23,6 +25,7 @@ Needs only the Xcode Command Line Tools (`xcode-select --install`); full Xcode i
 
 ./build.sh            # builds build/Switchmypanes.app
 ./build.sh run        # build and launch
+./build.sh install    # build, copy to ~/Applications and relaunch
 swift run CoreChecks  # run the logic checks
 ```
 
@@ -69,4 +72,5 @@ No automated tests can click macOS permission dialogs; see the manual test check
 9. Shift added: with a second display, the window moves there and keeps its snapped position. Try displays with different scales.
 10. Try a full-screen app (overlay should still appear on top; snapping does nothing to full-screen windows by design).
 11. Try an app with a minimum size (e.g. System Settings) in a quarter: it should sit in the right corner, not off-screen.
-12. Menu bar: Pause stops all shortcuts; Resume restores; Quit removes the icon.
+12. Drag a window by its title bar to each edge and corner: preview appears and follows the cursor; release snaps; Control+Option+Down then restores the old size. With two displays, dragging across the middle must NOT snap.
+13. Menu bar: Pause stops all shortcuts; Resume restores; Quit removes the icon.

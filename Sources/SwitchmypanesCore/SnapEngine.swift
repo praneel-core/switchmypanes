@@ -55,6 +55,30 @@ public enum SnapEngine {
         return nil
     }
 
+    // MARK: Drag to edge
+
+    /// Which zone a dragged window would snap to, from the cursor position (top-left coordinates).
+    /// Edges: left = left half, right = right half, top = maximize, corners = quarters. No bottom-edge zone (as in Windows).
+    /// An edge shared with another display is not a snap edge, otherwise dragging a window between
+    /// monitors would trigger snapping.
+    public static func dragZone(at p: CGPoint, in display: CGRect, edge: CGFloat = 6, corner: CGFloat = 80,
+                                leftIsSnapEdge: Bool = true, rightIsSnapEdge: Bool = true) -> SnapZone? {
+        let nl = leftIsSnapEdge && p.x - display.minX <= edge
+        let nr = rightIsSnapEdge && display.maxX - p.x <= edge
+        let nt = p.y - display.minY <= edge
+        let nb = display.maxY - p.y <= edge
+        let cl = p.x - display.minX <= corner, cr = display.maxX - p.x <= corner
+        let ct = p.y - display.minY <= corner, cb = display.maxY - p.y <= corner
+        if (nt && cl && leftIsSnapEdge) || (nl && ct) { return .topLeft }
+        if (nt && cr && rightIsSnapEdge) || (nr && ct) { return .topRight }
+        if (nb && cl && leftIsSnapEdge) || (nl && cb) { return .bottomLeft }
+        if (nb && cr && rightIsSnapEdge) || (nr && cb) { return .bottomRight }
+        if nt { return .maximize }
+        if nl { return .left }
+        if nr { return .right }
+        return nil
+    }
+
     // MARK: Windows-style transitions (Win+Arrow)
 
     public static func transition(from state: SnapZone?, key: ArrowKey,
