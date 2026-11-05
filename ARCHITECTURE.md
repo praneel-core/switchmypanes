@@ -58,8 +58,9 @@ Sources/
     SpaceProvider.swift     (private)   desktops: list, which window is where, switching
     WindowFocusProvider.swift (private) focus one exact window on any desktop
   CoreChecks/main.swift         the test runner (XCTest is not available with only the Command Line Tools)
-Support/Info.plist              no Dock icon, URL scheme, bundle id
-build.sh, tools/create-signing-identity.sh
+Support/Info.plist              no Dock icon, URL scheme, bundle id, icon
+Resources/AppIcon.icns          the app icon (drawn in code: `swift tools/make-app-icon.swift Resources` redraws every size)
+build.sh, tools/create-signing-identity.sh, tools/make-app-icon.swift
 ```
 
 ## Public vs private API

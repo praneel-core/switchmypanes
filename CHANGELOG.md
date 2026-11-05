@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- App icon: three glass windows with one lit and a divider grip, in the same glass style as the app (drawn in code by `tools/make-app-icon.swift`).
 - Transparency slider for the overlay glass (default 35%): only the glass fades, the tiles and text stay sharp. The glass is now a separate layer behind the content.
 - A new close button on tiles: a small dark glass disc with a thin ×, fading in on hover and turning soft red when pointed at, replacing the stock red icon.
 - Removed the keyboard-hint bar from the overlays: it took up space the tiles need. The panels now size to their content alone.

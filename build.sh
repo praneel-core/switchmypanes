@@ -21,6 +21,7 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/$APP_NAME"
 cp Support/Info.plist "$APP/Contents/Info.plist"
+cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"     # redraw it any time with: swift tools/make-app-icon.swift Resources
 
 # Why this matters: macOS ties the Accessibility / Input Monitoring / Screen Recording permissions
 # to the app's code signature. An ad-hoc signature ("-") changes on EVERY build, so you would have to
