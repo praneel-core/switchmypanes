@@ -9,6 +9,8 @@ final class SwitcherController {
     private let activator: WindowActivator
     private let panel = SwitcherPanel()
 
+    /// The modifier flags that must stay held for the overlay to stay open (the configured switcher modifier).
+    var requiredModifierFlags: () -> CGEventFlags = { .maskAlternate }
     private(set) var isActive = false
     private var windows: [WindowInfo] = []
     private var selection = SwitcherSelection(count: 0)
@@ -121,7 +123,7 @@ final class SwitcherController {
         windows = []
     }
 
-    /// Belt and braces against a stuck overlay: if the Option key is physically up, or the overlay
+    /// Belt and braces against a stuck overlay: if the modifier key is physically up, or the overlay
     /// has been open for a very long time, close it, even if the event tap missed something.
     private func startWatchdog() {
         watchdog?.invalidate()
@@ -129,8 +131,8 @@ final class SwitcherController {
             MainActor.assumeIsolated {
                 guard let self, self.isActive else { return }
                 let flags = CGEventSource.flagsState(.combinedSessionState)
-                if !flags.contains(.maskAlternate) {
-                    // The user let go of Option while the event tap did not report it.
+                if !flags.contains(self.requiredModifierFlags()) {
+                    // The user let go of the switcher modifier while the event tap did not report it.
                     // The mouse-click path also ends the session, so only commit here.
                     self.commit()
                 } else if Date().timeIntervalSince(self.startedAt) > 60 {

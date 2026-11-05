@@ -28,6 +28,15 @@ final class SettingsStore: ObservableObject {
     @Published var dragSnapEnabled: Bool { didSet { d.set(dragSnapEnabled, forKey: "dragSnapEnabled") } }
     /// Modifier combination for snapping (Control+Option by default). Stored as the raw bit set.
     @Published var snapModifiers: ShortcutModifiers { didSet { d.set(snapModifiers.rawValue, forKey: "snapModifiers") } }
+    /// Modifier(s) held for the window switcher (then Tab). Option by default.
+    @Published var switcherModifier: ShortcutModifiers { didSet { d.set(switcherModifier.rawValue, forKey: "switcherModifier") } }
+    /// Snap Layouts shortcut: modifiers + one key (Option+Z by default). `layoutsKeyLabel` is what to show for the key.
+    @Published var layoutsModifier: ShortcutModifiers { didSet { d.set(layoutsModifier.rawValue, forKey: "layoutsModifier") } }
+    @Published var layoutsKeyCode: Int { didSet { d.set(layoutsKeyCode, forKey: "layoutsKeyCode") } }
+    @Published var layoutsKeyLabel: String { didSet { d.set(layoutsKeyLabel, forKey: "layoutsKeyLabel") } }
+    /// True while a shortcut is being recorded in Preferences: the keyboard listener steps aside so the keys
+    /// you press reach the recorder instead of triggering the shortcut itself. Not saved.
+    var isRecordingShortcut = false
     /// Space in points between snapped windows and the screen edge.
     @Published var gap: Double { didSet { d.set(gap, forKey: "gap") } }
     /// Not saved: pausing lasts until you resume or quit.
@@ -35,7 +44,9 @@ final class SettingsStore: ObservableObject {
 
     private init() {
         d.register(defaults: ["switcherEnabled": true, "snapEnabled": true, "dragSnapEnabled": true, "layoutsEnabled": true, "snapAssistEnabled": true, "includeOtherDesktops": true, "includeFullScreen": true, "includeMinimized": true, "keepPreviewsFresh": true, "previewExcludedApps": PreviewPolicy.defaultExcludedApps, "gap": 0.0,
-                              "snapModifiers": ShortcutModifiers([.control, .option]).rawValue])
+                              "snapModifiers": ShortcutModifiers([.control, .option]).rawValue,
+                              "switcherModifier": ShortcutModifiers.option.rawValue,
+                              "layoutsModifier": ShortcutModifiers.option.rawValue, "layoutsKeyCode": 6, "layoutsKeyLabel": "Z"])
         switcherEnabled = d.bool(forKey: "switcherEnabled")
         snapEnabled = d.bool(forKey: "snapEnabled")
         dragSnapEnabled = d.bool(forKey: "dragSnapEnabled")
@@ -48,6 +59,10 @@ final class SettingsStore: ObservableObject {
         previewExcludedApps = d.stringArray(forKey: "previewExcludedApps") ?? PreviewPolicy.defaultExcludedApps
         snapModifiers = ShortcutModifiers(rawValue: d.integer(forKey: "snapModifiers"))
         gap = d.double(forKey: "gap")
+        switcherModifier = ShortcutModifiers(rawValue: d.integer(forKey: "switcherModifier"))
+        layoutsModifier = ShortcutModifiers(rawValue: d.integer(forKey: "layoutsModifier"))
+        layoutsKeyCode = d.integer(forKey: "layoutsKeyCode")
+        layoutsKeyLabel = d.string(forKey: "layoutsKeyLabel") ?? "Z"
     }
 
     var spaceFilter: SpaceFilterOptions {
@@ -56,12 +71,19 @@ final class SettingsStore: ObservableObject {
     }
 
     var config: ShortcutConfig {
-        ShortcutConfig(switcherModifier: .option, snapModifiers: snapModifiers,
-                       switcherEnabled: switcherEnabled, snapEnabled: snapEnabled, layoutsEnabled: layoutsEnabled)
+        ShortcutConfig(switcherModifier: switcherModifier, snapModifiers: snapModifiers,
+                       switcherEnabled: switcherEnabled, snapEnabled: snapEnabled, layoutsEnabled: layoutsEnabled,
+                       layoutsModifier: layoutsModifier, layoutsKeyCode: Int64(layoutsKeyCode))
     }
 
     func resetToDefaults() {
         switcherEnabled = true; snapEnabled = true; dragSnapEnabled = true; layoutsEnabled = true; snapAssistEnabled = true; includeOtherDesktops = true; includeFullScreen = true; includeMinimized = true; keepPreviewsFresh = true; previewExcludedApps = PreviewPolicy.defaultExcludedApps; gap = 0
+        resetShortcuts()
+    }
+
+    func resetShortcuts() {
+        switcherModifier = .option
         snapModifiers = [.control, .option]
+        layoutsModifier = .option; layoutsKeyCode = 6; layoutsKeyLabel = "Z"
     }
 }

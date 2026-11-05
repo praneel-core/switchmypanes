@@ -36,6 +36,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, KeyboardMonitorDelegat
         _ = statusItem
 
         monitor.delegate = self
+        monitor.isSuspended = { [settings] in settings.isRecordingShortcut }
+        switcher.requiredModifierFlags = { [settings] in settings.switcherModifier.cgFlags }
         monitor.configProvider = { [settings] in settings.config }
         thumbnails.isAllowed = { [weak self] id in
             guard let self else { return true }
@@ -86,8 +88,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, KeyboardMonitorDelegat
         if preferencesWindow == nil {
             let w = NSWindow(contentViewController: NSHostingController(rootView: PreferencesView(settings: settings)))
             w.title = "Switchmypanes Preferences"
-            w.styleMask = [.titled, .closable]
+            w.styleMask = [.titled, .closable, .resizable]      // scrolls: there are many settings
             w.isReleasedWhenClosed = false
+            let room = (NSScreen.main?.visibleFrame.height ?? 800) - 80
+            w.setContentSize(NSSize(width: 560, height: min(700, max(420, room))))
             preferencesWindow = w
         }
         NSApp.activate(ignoringOtherApps: true)

@@ -38,6 +38,14 @@ Free, local only: no accounts, no network calls, no analytics. Phase 1 of 3: see
   not snapped). Left then Up = top-left quarter, etc. Add **Shift** to move the window to another display.
   The modifiers and a gap between windows are configurable in Preferences.
 
+## Preferences
+
+Menu bar icon → Preferences. **Shortcuts**: click a shortcut, press the new combination (Esc cancels). The switcher takes
+modifier(s) + Tab, snapping takes modifiers + an arrow key, Snap Layouts takes modifier(s) + any key. Combinations that
+clash with macOS (⌘Tab) or with text editing (⌥← jumps a word) are refused with a reason. **Open at login** uses
+macOS's own login-item system (System Settings → General → Login Items); install the app first (`./build.sh install`)
+so the login item points at `~/Applications`, not `build/`.
+
 ## Build and run
 
 Needs only the Xcode Command Line Tools (`xcode-select --install`); full Xcode is not required.
@@ -108,4 +116,6 @@ No automated tests can click macOS permission dialogs; see the manual test check
 17. Minimized/hidden: minimize a window (yellow button) and hide another app (Cmd+H). Option+Tab lists them tagged "Minimized"/"Hidden"; selecting one brings it back. Quit-to-background apps (close Claude's window with the red button) should NOT appear.
 18. Closing a full-screen window from the overlay (hover ✕) from another desktop: macOS should switch to it, close it, and usually return you. Tell me what you see.
 19. Previews: work in two windows on desktop 1 for a few seconds each, switch to another desktop, Option+Tab: both should show pictures. In Preferences, add an app to "Never take previews of": its tile should show only the icon. Switch the toggle off and confirm new windows stop getting pictures. If Activity Monitor shows Switchmypanes using noticeable CPU/energy while idle, tell me.
-20. Menu bar: Pause stops all shortcuts; Resume restores; Quit removes the icon.
+20. Preferences: open it (it should fit your screen and scroll). Click the Snap Layouts shortcut, press ⌃⌥B: it changes; press Option+Z: it should now do nothing, ⌃⌥B opens the picker. Try ⌘Tab for the switcher (refused), ⌥← for snapping (refused). Record ⌃⌥Tab for the switcher: hold both, Tab cycles, releasing EITHER key commits. Use the reset arrows. While recording, pressing the current shortcut must NOT trigger it.
+21. Open at login: turn it on from the installed copy. If macOS asks, approve it in System Settings → General → Login Items; log out and in (or restart) and check that the menu bar icon is back. Turn it off again to test that too.
+22. Menu bar: Pause stops all shortcuts; Resume restores; Quit removes the icon.

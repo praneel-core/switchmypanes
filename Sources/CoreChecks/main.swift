@@ -381,5 +381,61 @@ do {
     check(!a(idle: 120), "idle for two minutes"); check(!a(low: true), "low power mode"); check(a(idle: 60), "exactly at the idle limit is fine")
 }
 
+section("Shortcut display")
+do {
+    eq(ShortcutDisplay.symbols([.command, .control, .option, .shift]), "⌃⌥⇧⌘", "macOS symbol order")
+    eq(ShortcutDisplay.describe(.option, key: "Tab"), "⌥Tab", "Option+Tab"); eq(ShortcutDisplay.describe([.control, .option], key: "←"), "⌃⌥←", "snap")
+    eq(ShortcutDisplay.keyName(6), "Z", "Z"); eq(ShortcutDisplay.keyName(126), "↑", "up arrow"); eq(ShortcutDisplay.keyName(999), "Key 999", "unknown key")
+    eq(ShortcutModifiers([.control, .option]).count, 2, "modifier count"); eq(ShortcutModifiers([]).count, 0, "empty count")
+}
+
+section("Shortcut validation")
+do {
+    let c = ShortcutConfig()      // ⌥Tab switcher, ⌃⌥ arrows, ⌥Z layouts
+    func v(_ k: ShortcutKind, _ m: ShortcutModifiers, _ code: Int64, _ cfg: ShortcutConfig? = nil) -> String? {
+        ShortcutValidator.validate(k, modifiers: m, keyCode: code, current: cfg ?? c)
+    }
+    check(v(.switcher, .option, 48) == nil, "⌥Tab ok"); check(v(.switcher, [.control, .option], 48) == nil, "⌃⌥Tab ok")
+    check(v(.switcher, .control, 48) == nil, "⌃Tab ok")
+    check(v(.switcher, .command, 48) != nil, "⌘Tab rejected (macOS)"); check(v(.switcher, [.command, .option], 48) == nil, "⌘⌥Tab ok")
+    check(v(.switcher, [], 48) != nil, "Tab alone rejected"); check(v(.switcher, [.option, .shift], 48) != nil, "Shift rejected")
+    check(v(.switcher, .option, 6) != nil, "switcher needs Tab")
+    var layTab = c; layTab.layoutsKeyCode = 48; layTab.layoutsModifier = .control
+    check(v(.switcher, .control, 48, layTab) != nil, "clash with Snap Layouts")
+
+    check(v(.snap, [.control, .option], 123) == nil, "⌃⌥← ok"); check(v(.snap, [.control, .command], 124) == nil, "⌃⌘→ ok")
+    check(v(.snap, .option, 123) != nil, "⌥← alone rejected (word jump)"); check(v(.snap, .control, 123) != nil, "⌃← alone rejected (Spaces)")
+    check(v(.snap, .command, 123) != nil, "⌘← alone rejected (text editing)")
+    check(v(.snap, [.control, .option, .shift], 123) != nil, "Shift rejected"); check(v(.snap, [.control, .option], 6) != nil, "needs an arrow")
+    var layArrow = c; layArrow.layoutsKeyCode = 126; layArrow.layoutsModifier = [.control, .command]
+    check(v(.snap, [.control, .command], 123, layArrow) != nil, "clash with Snap Layouts on an arrow")
+
+    check(v(.layouts, .option, 6) == nil, "⌥Z ok"); check(v(.layouts, [.control, .option], 7) == nil, "⌃⌥X ok")
+    check(v(.layouts, [], 6) != nil, "Z alone rejected"); check(v(.layouts, .shift, 6) != nil, "Shift+Z rejected")
+    check(v(.layouts, .option, 53) != nil, "Esc rejected"); check(v(.layouts, .command, 12) != nil, "⌘Q rejected"); check(v(.layouts, .command, 13) != nil, "⌘W rejected")
+    check(v(.layouts, .command, 6) == nil, "⌘Z ok (not reserved here)"); check(v(.layouts, .option, 48) != nil, "clash with the switcher")
+    check(v(.layouts, [.control, .option], 124) != nil, "clash with snapping")
+    check(v(.layouts, [.control, .option, .shift], 124) != nil, "clash with snapping + Shift (move display)")
+    check(v(.layouts, [.control, .option], 11) == nil, "⌃⌥B ok")
+}
+
+section("Custom shortcuts in the classifier")
+do {
+    var cfg = ShortcutConfig()
+    cfg.switcherModifier = [.control, .option]; cfg.layoutsKeyCode = 11; cfg.layoutsModifier = [.control, .option]
+    func kd(_ code: Int64, _ f: ShortcutModifiers, active: Bool = false) -> KeyAction {
+        KeyClassifier.classifyKeyDown(keyCode: code, flags: f, isRepeat: false, switcherActive: active, config: cfg)
+    }
+    eq(kd(48, [.control, .option]), .switcherOpen(reverse: false), "⌃⌥Tab opens with a two-key modifier")
+    eq(kd(48, .option), .passThrough, "⌥Tab no longer opens")
+    eq(kd(48, [.control, .option, .shift]), .switcherOpen(reverse: true), "with Shift: reverse")
+    eq(kd(48, [.control, .option], active: true), .switcherNext, "Tab while open")
+    eq(kd(48, .option, active: true), .switcherCommit, "releasing one of the two modifiers commits")
+    eq(KeyClassifier.classifyFlagsChanged(flags: .option, switcherActive: true, config: cfg), .switcherCommit, "flags: one modifier released")
+    eq(KeyClassifier.classifyFlagsChanged(flags: [.control, .option], switcherActive: true, config: cfg), .passThrough, "flags: both still held")
+    eq(kd(11, [.control, .option]), .layoutsOpen, "custom Snap Layouts key (B)")
+    eq(kd(6, .option), .passThrough, "old Snap Layouts key no longer works")
+}
+
 print("\n\(total - failures)/\(total) checks passed")
 exit(failures == 0 ? 0 : 1)

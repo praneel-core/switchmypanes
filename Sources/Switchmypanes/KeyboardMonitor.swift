@@ -22,6 +22,8 @@ protocol KeyboardMonitorDelegate: AnyObject {
 final class KeyboardMonitor {
     weak var delegate: KeyboardMonitorDelegate?
     var isPaused = false
+    /// True while Preferences is recording a new shortcut: pass every key through untouched.
+    var isSuspended: () -> Bool = { false }
     var configProvider: () -> ShortcutConfig = { ShortcutConfig() }
 
     private var tap: CFMachPort?
@@ -80,7 +82,7 @@ final class KeyboardMonitor {
             return pass
 
         case .keyDown:
-            if isPaused { return pass }
+            if isPaused || isSuspended() { return pass }
             let code = event.getIntegerValueField(.keyboardEventKeycode)
             let isRepeat = event.getIntegerValueField(.keyboardEventAutorepeat) != 0
             func classify() -> KeyAction {
@@ -113,7 +115,7 @@ final class KeyboardMonitor {
             return swallowedKeyUps.remove(code) != nil ? nil : pass
 
         case .flagsChanged:
-            if isPaused { return pass }
+            if isPaused || isSuspended() { return pass }
             let action = KeyClassifier.classifyFlagsChanged(flags: Self.modifiers(event.flags),
                                                             switcherActive: delegate.switcherActive, config: configProvider())
             if action != .passThrough { delegate.keyboardMonitor(self, perform: action) }

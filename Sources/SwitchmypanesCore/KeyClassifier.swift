@@ -16,13 +16,16 @@ public struct ShortcutConfig: Equatable {
     /// Option+Z opens the Snap Layouts picker.
     public var layoutsEnabled: Bool
     public var layoutsModifier: ShortcutModifiers
+    public var layoutsKeyCode: Int64
     public init(switcherModifier: ShortcutModifiers = .option,
                 snapModifiers: ShortcutModifiers = [.control, .option],
                 switcherEnabled: Bool = true, snapEnabled: Bool = true,
-                layoutsEnabled: Bool = true, layoutsModifier: ShortcutModifiers = .option) {
+                layoutsEnabled: Bool = true, layoutsModifier: ShortcutModifiers = .option,
+                layoutsKeyCode: Int64 = 6) {
         self.switcherModifier = switcherModifier; self.snapModifiers = snapModifiers
         self.switcherEnabled = switcherEnabled; self.snapEnabled = snapEnabled
         self.layoutsEnabled = layoutsEnabled; self.layoutsModifier = layoutsModifier
+        self.layoutsKeyCode = layoutsKeyCode
     }
 }
 
@@ -112,7 +115,7 @@ public enum KeyClassifier {
         if config.switcherEnabled, keyCode == tab, flags.subtracting(.shift) == config.switcherModifier {
             return isRepeat ? .swallow : .switcherOpen(reverse: flags.contains(.shift))
         }
-        if config.layoutsEnabled, keyCode == z, flags == config.layoutsModifier {
+        if config.layoutsEnabled, keyCode == config.layoutsKeyCode, flags == config.layoutsModifier {
             return isRepeat ? .swallow : .layoutsOpen
         }
         if config.snapEnabled, let a = arrow(for: keyCode), !config.snapModifiers.isEmpty {

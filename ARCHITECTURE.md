@@ -12,12 +12,16 @@ Sources/
     SnapEngine.swift            zone frames, zone detection, Win+Arrow state machine, RestoreMemory
     Switcher.swift              MRUList, SwitcherSelection (the "second window first" rule)
     SnapLayout.swift            the nine Snap Layouts presets + gap-aware zone frames
+    ShortcutRules.swift         shortcut display names + ShortcutValidator (which combinations are allowed)
+    PreviewPolicy.swift         never-capture list + when automatic captures may run
     KeyClassifier.swift         "what does this key press mean": the only place that decides what we swallow
   Switchmypanes/              The app
     main.swift, AppDelegate.swift      wiring, lifecycle, switchmypanes:// URLs
     StatusItemController.swift         menu bar icon + menu
     PermissionManager.swift, OnboardingWindow.swift   permission checks + plain-language checklist (live)
     SettingsStore.swift, PreferencesView.swift        settings (SwiftUI only here)
+    ShortcutRecorder.swift, ModifierFlags.swift       click-to-record shortcut rows; the keyboard listener steps aside while recording
+    LoginItem.swift                    open at login via SMAppService
     KeyboardMonitor.swift              the CGEventTap
     WindowInventory.swift              window list + MRU tracking
     WindowIDProvider.swift  (PRIVATE)  CGWindowID <-> AXUIElement, behind a protocol
@@ -115,7 +119,7 @@ Accessibility API is top-left; all logic uses top-left and converts once, in `Di
 - DONE: closing a window on another desktop = switch there (`WindowActivator.onOtherSpace`), then press its close button once Accessibility can see it.
 - DONE: event-driven preview cache. `WindowInventory.onFrontWindowChanged` -> `PreviewKeeper` captures the window you left, and the one you settled into (3 s), plus a 60 s refresh of that single window; gated by `PreviewPolicy` (Core, tested: off / paused / locked / idle / Low Power) and an exclusion list enforced in ONE place, `ThumbnailService.isAllowed` (capture AND display). Memory only, capped at 60.
 - Switcher still to do: all-screens / current-screen option, live thumbnails.
-- Preferences: shortcut recorder, launch at login (`SMAppService.mainApp`).
+- DONE: shortcut recorder (validated in Core by `ShortcutValidator`; `KeyboardMonitor.isSuspended` while recording) and launch at login (`SMAppService.mainApp`). Phase 2 is complete apart from the optional "all screens / current screen only" switcher setting.
 
 ## Phase 3 plan
 

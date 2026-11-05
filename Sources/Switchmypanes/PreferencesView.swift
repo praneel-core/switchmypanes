@@ -6,10 +6,11 @@ struct PreferencesView: View {
     @ObservedObject var settings: SettingsStore
     private let spacesAvailable = makeSpaceProvider() is CGSSpaceProvider
 
-    private func binding(_ m: ShortcutModifiers) -> Binding<Bool> {
-        Binding(get: { settings.snapModifiers.contains(m) },
-                set: { on in if on { settings.snapModifiers.insert(m) } else { settings.snapModifiers.remove(m) } })
-    }
+    @State private var loginOn = LoginItem.isEnabled
+    @State private var loginNeedsApproval = LoginItem.needsApproval
+    @State private var loginError: String?
+
+    private func refreshLogin() { loginOn = LoginItem.isEnabled; loginNeedsApproval = LoginItem.needsApproval }
 
     private struct AppChoice { let id: String; let name: String }
 
@@ -34,8 +35,57 @@ struct PreferencesView: View {
 
     var body: some View {
         Form {
+            Section("General") {
+                Toggle("Open Switchmypanes when I log in", isOn: Binding(
+                    get: { loginOn },
+                    set: { on in
+                        loginError = nil
+                        do { try LoginItem.set(on) } catch { loginError = "macOS refused: \(error.localizedDescription)" }
+                        refreshLogin()
+                    }))
+                if loginNeedsApproval {
+                    HStack {
+                        Label("macOS needs you to approve it once in System Settings → General → Login Items.", systemImage: "info.circle")
+                            .font(.caption)
+                        Spacer()
+                        Button("Open Login Items") { LoginItem.openSystemSettings() }
+                    }
+                }
+                if !LoginItem.runsFromApplications {
+                    Label("This copy is not in an Applications folder. Move it to ~/Applications (./build.sh install does this) before turning this on.",
+                          systemImage: "exclamationmark.triangle").font(.caption).foregroundStyle(.orange)
+                }
+                if let loginError { Label(loginError, systemImage: "exclamationmark.triangle").font(.caption).foregroundStyle(.orange) }
+            }
+            Section("Shortcuts") {
+                ShortcutRow(title: "Window switcher: hold, then press Tab",
+                            display: ShortcutDisplay.describe(settings.switcherModifier, key: "Tab"),
+                            isDefault: settings.switcherModifier == .option,
+                            onCapture: { m, code, _ in
+                                if let problem = ShortcutValidator.validate(.switcher, modifiers: m, keyCode: code, current: settings.config) { return problem }
+                                settings.switcherModifier = m; return nil
+                            }, onReset: { settings.switcherModifier = .option })
+                ShortcutRow(title: "Snapping: press with an arrow key",
+                            display: ShortcutDisplay.symbols(settings.snapModifiers) + " + arrows",
+                            isDefault: settings.snapModifiers == [.control, .option],
+                            onCapture: { m, code, _ in
+                                if let problem = ShortcutValidator.validate(.snap, modifiers: m, keyCode: code, current: settings.config) { return problem }
+                                settings.snapModifiers = m; return nil
+                            }, onReset: { settings.snapModifiers = [.control, .option] })
+                ShortcutRow(title: "Snap Layouts picker",
+                            display: ShortcutDisplay.describe(settings.layoutsModifier, key: settings.layoutsKeyLabel),
+                            isDefault: settings.layoutsModifier == .option && settings.layoutsKeyCode == 6,
+                            onCapture: { m, code, label in
+                                if let problem = ShortcutValidator.validate(.layouts, modifiers: m, keyCode: code, current: settings.config) { return problem }
+                                settings.layoutsModifier = m; settings.layoutsKeyCode = Int(code)
+                                settings.layoutsKeyLabel = label.isEmpty ? ShortcutDisplay.keyName(code) : label
+                                return nil
+                            }, onReset: { settings.layoutsModifier = .option; settings.layoutsKeyCode = 6; settings.layoutsKeyLabel = "Z" })
+                Text("Click a shortcut, then press the new combination. Shift is reserved: with the switcher it goes backwards, with snapping it moves a window to another display. Combinations that clash with macOS or with text editing are refused.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             Section("Window switcher") {
-                Toggle("Option+Tab switches between windows", isOn: $settings.switcherEnabled)
+                Toggle("Window switcher shortcut enabled", isOn: $settings.switcherEnabled)
                 Toggle("Include windows from other desktops", isOn: $settings.includeOtherDesktops)
                     .disabled(!settings.switcherEnabled || !spacesAvailable)
                 Toggle("Include full-screen apps", isOn: $settings.includeFullScreen)
@@ -46,7 +96,7 @@ struct PreferencesView: View {
                     Label("macOS did not provide desktop information, so only visible windows on the current desktop are listed.",
                           systemImage: "exclamationmark.triangle").font(.caption).foregroundStyle(.orange)
                 }
-                Text("Hold Option and press Tab. Tab / Shift+Tab or the arrow keys move, release Option to switch, Esc cancels. Cmd+Tab is not changed.")
+                Text("Hold \(ShortcutDisplay.symbols(settings.switcherModifier)) and press Tab. Tab / Shift+Tab or the arrow keys move, release to switch, Esc cancels, Delete or W closes the highlighted window. Cmd+Tab is not changed.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section("Snapping") {
@@ -55,27 +105,11 @@ struct PreferencesView: View {
                     .disabled(!settings.snapEnabled)
                 Toggle("Drag a window to a screen edge or corner to snap it", isOn: $settings.dragSnapEnabled)
                     .disabled(!settings.snapEnabled)
-                HStack {
-                    Text("Shortcut modifiers")
-                    Spacer()
-                    Toggle("Control", isOn: binding(.control)).toggleStyle(.checkbox)
-                    Toggle("Option", isOn: binding(.option)).toggleStyle(.checkbox)
-                    Toggle("Command", isOn: binding(.command)).toggleStyle(.checkbox)
-                }
-                .disabled(!settings.snapEnabled)
-                if settings.snapEnabled && settings.snapModifiers.isEmpty {
-                    Label("Pick at least one modifier, otherwise snapping is off.", systemImage: "exclamationmark.triangle")
-                        .font(.caption).foregroundStyle(.orange)
-                }
-                if settings.snapEnabled && settings.snapModifiers == .command {
-                    Label("Command+Arrow is used for text editing in most apps. Add another modifier.", systemImage: "exclamationmark.triangle")
-                        .font(.caption).foregroundStyle(.orange)
-                }
                 VStack(alignment: .leading) {
                     Text("Gap between windows: \(Int(settings.gap)) pt")
                     Slider(value: $settings.gap, in: 0...24, step: 1)
                 }
-                Text("Modifier + Left / Right = half, Up = maximize, Down = restore or minimize. Left then Up = top-left quarter, and so on. Add Shift to move the window to another display. Dragging: left / right edge = half, top edge = maximize, corners = quarters.")
+                Text("Shortcut + Left / Right = half, Up = maximize, Down = restore or minimize. Left then Up = top-left quarter, and so on. Add Shift to move the window to another display. Dragging: left / right edge = half, top edge = maximize, corners = quarters.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section("Window previews") {
@@ -108,16 +142,16 @@ struct PreferencesView: View {
                 }
             }
             Section("Snap Layouts") {
-                Toggle("Option+Z opens the Snap Layouts picker", isOn: $settings.layoutsEnabled)
-                Text("Pick a layout (arrow keys, Return, or press 1–9), then choose a window for each area. Space skips an area, Esc stops. Note: Option+Z normally types “Ω”.")
+                Toggle("Snap Layouts shortcut enabled", isOn: $settings.layoutsEnabled)
+                Text("Pick a layout (arrow keys, Return, or press 1–9), then choose a window for each area. Space skips an area, Esc stops. Note: with Option+Z as the shortcut, “Ω” can no longer be typed. Change the shortcut above if you need it.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section {
                 Button("Reset to defaults") { settings.resetToDefaults() }
             }
         }
+        .onAppear { refreshLogin() }
         .formStyle(.grouped)
-        .frame(width: 520)
-        .fixedSize(horizontal: false, vertical: true)
+        .frame(minWidth: 520, minHeight: 360)
     }
 }
