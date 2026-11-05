@@ -15,7 +15,8 @@ Free, local only: no accounts, no network calls, no analytics. Phase 1 of 3: see
   **W**. It closes exactly as if you had clicked its close button, so "Save changes?" prompts still appear (the tile
   stays until the window is really gone). For a window on another desktop (including a full-screen app) it first switches to that desktop, then closes it.
 - **Minimized and hidden windows**: minimized windows and windows of hidden (Cmd+H) apps are listed too, tagged
-  "Minimized" / "Hidden"; choosing one restores it. Apps like Claude or Slack that "close" a window to the
+  "Minimized" / "Hidden"; choosing one restores it. Helper windows that apps draw but that are not real windows (for example Chrome's full-screen toolbar strip) are
+  hidden too. Apps like Claude or Slack that "close" a window to the
   background without destroying it are NOT listed (they are not really showing anywhere). Toggle in Preferences.
 - **Other desktops and full-screen apps**: the overlay also lists windows on other desktops (Spaces) and full-screen
   apps, each with a small "Desktop 2" / "Full screen" tag. Choosing one makes macOS switch to that desktop.

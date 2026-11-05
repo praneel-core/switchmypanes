@@ -27,6 +27,11 @@ final class WindowInventory {
     private let spaces: SpaceProvider
     private let options: () -> SpaceFilterOptions
     private var titleCache: [CGWindowID: String] = [:]
+    // Which windows Accessibility knows, per app. Used to hide helper windows (for example Chrome's full-screen
+    // toolbar strip): they are drawn on screen but are not real windows, and clicking them does nothing.
+    private var axKnownIDs: [pid_t: Set<CGWindowID>] = [:]
+    private var axKnownAt: [pid_t: Date] = [:]
+    private var axRefreshPIDs: Set<pid_t> = []
     private var titleRefreshInFlight = false
     private var timer: Timer?
     private var tick = 0
@@ -83,7 +88,10 @@ final class WindowInventory {
         let order = mru.ordered(live: raw.map(\.id))
         let byID = Dictionary(raw.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
         let result = order.compactMap { byID[$0] }
-        if result.contains(where: { $0.title == $0.appName }) { refreshTitlesInBackground(pids: Set(result.map(\.pid))) }
+        var pids = Set<pid_t>()
+        if result.contains(where: { $0.title == $0.appName }) { pids.formUnion(result.map(\.pid)) }
+        pids.formUnion(axRefreshPIDs); axRefreshPIDs.removeAll()
+        if !pids.isEmpty { refreshTitlesInBackground(pids: pids) }
         return result
     }
 
@@ -120,6 +128,12 @@ final class WindowInventory {
             let onScreen = snap == nil ? true : ((w[kCGWindowIsOnscreen as String] as? Bool) ?? false)
             if onScreen {
                 guard (w[kCGWindowAlpha as String] as? Double ?? 1) > 0.01 else { continue }
+                // An untitled window that the app's Accessibility list does not contain is a helper, not a real
+                // window. (Only trusted when that list is non-empty, i.e. the app supports Accessibility at all.)
+                if title.isEmpty, let known = axKnownIDs[pid], !known.isEmpty, !known.contains(num) {
+                    if Date().timeIntervalSince(axKnownAt[pid] ?? .distantPast) > 1 { axRefreshPIDs.insert(pid) }   // maybe brand new: re-check
+                    continue
+                }
             } else if let snap {
                 // Not drawn right now: another desktop, a full-screen app, a minimized window, or a helper window.
                 let windowSpaces = spaces.spaces(ofWindow: num)
@@ -161,15 +175,22 @@ final class WindowInventory {
         let ids = self.ids
         DispatchQueue.global(qos: .userInitiated).async {
             var found: [CGWindowID: String] = [:]
+            var known: [pid_t: Set<CGWindowID>] = [:]
             for pid in pids {
+                var set = Set<CGWindowID>()
                 for w in AX.windows(of: AX.app(pid: pid)) {
-                    if let id = ids.windowID(of: w), let t = AX.string(w, kAXTitleAttribute), !t.isEmpty { found[id] = t }
+                    guard let id = ids.windowID(of: w) else { continue }
+                    set.insert(id)
+                    if let t = AX.string(w, kAXTitleAttribute), !t.isEmpty { found[id] = t }
                 }
+                known[pid] = set
             }
             DispatchQueue.main.async { [weak self] in
                 MainActor.assumeIsolated {
                     guard let self else { return }
                     self.titleCache.merge(found) { _, new in new }
+                    let now = Date()
+                    for (pid, set) in known { self.axKnownIDs[pid] = set; self.axKnownAt[pid] = now }
                     self.titleRefreshInFlight = false
                 }
             }
