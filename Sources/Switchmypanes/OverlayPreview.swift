@@ -232,6 +232,53 @@ enum OverlayPreview {
         return ok
     }
 
+    /// `--selftest-menu-bar`: builds the menu bar menu against throwaway settings (never yours) and clicks every item except Quit.
+    @MainActor static func verifyMenuBar() -> Bool {
+        let suite = "switchmypanes.selftest.menubar"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let settings = SettingsStore(defaults: defaults)
+        let menu = MenuBarMenu(settings: settings)
+        var events: [String] = []
+        menu.keyboardActive = { true }
+        menu.onPause = { events.append("pause:" + ($0.map { String(Int($0)) } ?? "until-resume")) }
+        menu.onResume = { events.append("resume") }
+        menu.onShortcuts = { events.append("shortcuts") }
+        menu.onPreferences = { events.append("preferences") }
+        menu.onPermissions = { events.append("permissions") }
+        var ok = true
+        func check(_ cond: Bool, _ what: String) { print(cond ? "PASS: \(what)" : "FAIL: \(what)"); ok = ok && cond }
+        func state(_ t: String) -> NSControl.StateValue? { menu.debugItem(t)?.state }
+
+        menu.refresh()
+        check(menu.debugTitles == ["Switchmypanes", "Shortcuts active", "Window switcher", "Snapping", "Snap Layouts", "Snap animations", "Pause",
+                                   "Shortcuts…", "Preferences…", "Permissions…", "Quit Switchmypanes"], "the menu: status, four toggles, Pause, Shortcuts, Preferences, Permissions, Quit (got \(menu.debugTitles))")
+        check(["Window switcher", "Snapping", "Snap Layouts", "Snap animations"].allSatisfy { state($0) == .on }, "all four toggles start ticked (the defaults)")
+        menu.debugClick("Snapping"); menu.refresh()
+        check(settings.snapEnabled == false && state("Snapping") == .off && state("Window switcher") == .on, "clicking Snapping switches snapping off and unticks only that item")
+        menu.debugClick("Snapping"); menu.refresh()
+        check(settings.snapEnabled && state("Snapping") == .on, "clicking again switches it back on")
+        menu.debugClick("Snap animations"); menu.debugClick("Snap Layouts"); menu.debugClick("Window switcher"); menu.refresh()
+        check(!settings.snapAnimationsEnabled && !settings.layoutsEnabled && !settings.switcherEnabled, "the other three toggles work too")
+        menu.debugClick("For 1 hour"); menu.debugClick("Until I resume")
+        check(events == ["pause:3600", "pause:until-resume"], "Pause > For 1 hour / Until I resume send the right durations (\(events))")
+
+        events.removeAll()
+        settings.paused = true; settings.pausedUntil = Date().addingTimeInterval(3000); menu.refresh()
+        check(menu.debugTitles.contains("Resume Switchmypanes") && !menu.debugTitles.contains("Pause"), "while paused: Resume replaces Pause")
+        check(menu.debugTitles[1].hasPrefix("Paused until "), "a timed pause says when it ends (\(menu.debugTitles[1]))")
+        settings.pausedUntil = nil; menu.refresh()
+        check(menu.debugTitles[1] == "Paused", "paused with no end time just says Paused")
+        menu.debugClick("Resume Switchmypanes")
+        check(events == ["resume"], "Resume is wired up")
+        settings.paused = false; menu.keyboardActive = { false }; menu.refresh()
+        check(menu.debugTitles[1] == "Shortcuts not active: check Permissions", "when the keyboard listener is down the status says so")
+        menu.debugClick("Shortcuts…"); menu.debugClick("Preferences…"); menu.debugClick("Permissions…")
+        check(events == ["resume", "shortcuts", "preferences", "permissions"], "Shortcuts, Preferences and Permissions are wired up")
+        return ok
+    }
+
     /// `--selftest-overlay`: opens the REAL overlay (real glass) once per look and checks it comes up and goes away.
     static func flashEachStyle() -> Bool {
         let screen = NSScreen.main ?? NSScreen.screens[0]
@@ -323,6 +370,15 @@ enum OverlayPreview {
         let solid = make(all, selected: 1, caption: nil)
         png(of: solid.contentSnapshotView, over: true, to: folder.appendingPathComponent("switcher-reduce-transparency.png"))
         OverlayTheme.reduceTransparencyOverride = nil
+        // the shortcut cheat sheet window
+        let sheet = NSHostingView(rootView: ShortcutCheatSheetView(settings: SettingsStore.shared))
+        sheet.frame = NSRect(x: 0, y: 0, width: 540, height: 620)
+        let sheetWindow = NSWindow(contentRect: sheet.frame, styleMask: [.titled, .closable], backing: .buffered, defer: false)
+        sheetWindow.contentView = sheet
+        sheetWindow.setFrameOrigin(NSPoint(x: -4000, y: -4000))
+        sheet.layoutSubtreeIfNeeded()
+        RunLoop.current.run(until: Date().addingTimeInterval(0.4))
+        png(of: sheet, over: false, to: folder.appendingPathComponent("shortcuts.png"))
         // list mode (many windows), and the three tile sizes
         let many = (0..<14).map { i -> WindowInfo in let w = all[i % all.count]; return WindowInfo(id: UInt32(300 + i), pid: w.pid, appName: w.appName, title: w.title, frame: .zero, icon: w.icon, placement: w.placement, spaceLabel: w.spaceLabel, bundleID: w.bundleID) }
         let listPanel = SwitcherPanel()

@@ -27,6 +27,7 @@ Sources/
     LinkedResize.swift            shared-divider resizing, dividers, hover zones, MinSizeLearning
     Switcher.swift                TileSize / ListPreference / OverlayDensity (when the overlay uses the compact list), MRUList, SwitcherSelection (the "second window first" rule, spatial arrow keys), OverlayGrid (the grid layout rule shared by drawing and navigation)
     SpaceClassifier.swift         which windows belong in the switcher (current / other desktop / minimized / junk)
+    ShortcutCheatSheet.swift      the cheat sheet's content from the current settings, and PauseSchedule (timed pause)
     WindowSearch.swift            type-to-search matching (every word must appear in app name, title or tag; accent/case-insensitive)
     KeyClassifier.swift           what a key press means: the ONLY place that decides which keys we swallow
     ShortcutRules.swift           shortcut display names and ShortcutValidator (which combinations are allowed)
@@ -35,7 +36,8 @@ Sources/
   Switchmypanes/                the app
     main.swift                    entry point, diagnostic flags (--help, --list-windows, --selftest-*)
     AppDelegate.swift             wiring and lifecycle, the switchmypanes:// URL scheme
-    StatusItemController.swift    menu bar icon and menu
+    StatusItemController.swift    the menu bar icon; its menu is MenuBarMenu.swift (status, toggles, timed pause, cheat sheet), testable without a real menu bar item
+    ShortcutCheatSheet.swift      the Shortcuts window (content comes from Core `ShortcutCheatSheet`)
     PermissionManager.swift, OnboardingWindow.swift    permission checks and the live checklist
     SettingsStore.swift, PreferencesView.swift         settings (SwiftUI is used only for Preferences)
     ShortcutRecorder.swift, ModifierFlags.swift        click-to-record shortcuts

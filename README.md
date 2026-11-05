@@ -112,8 +112,8 @@ Preferences has five tabs (General, Shortcuts, Switcher, Snapping, Apps). The ov
 with a reason), toggles for every feature, the gap between snapped windows, the never-capture and excluded-app lists, and
 **Open at login** (via macOS's own login items; install with `./build.sh install` first so it points at `~/Applications`).
 
-The menu bar menu has Preferences, Permissions, Pause / Resume and Quit. A `switchmypanes://` URL scheme also works:
-`open switchmypanes://pause`, `://resume`, `://preferences`, `://permissions`.
+The menu bar menu shows the status (active, paused until a time, or what is wrong), quick checkmark toggles for **Window switcher**, **Snapping**, **Snap Layouts** and **Snap animations**, **Pause** (for 1 hour, which resumes by itself even if the Mac slept through it, or until you resume), **Shortcuts…** (a cheat sheet of every shortcut built from your current settings, so it stays right after you re-record one), Preferences, Permissions and Quit. A `switchmypanes://` URL scheme also works: A `switchmypanes://` URL scheme also works:
+`open switchmypanes://pause`, `://resume`, `://preferences`, `://permissions`, `://shortcuts`.
 
 ## Privacy
 Everything stays on your Mac. The keyboard listener (a CGEventTap) looks only at the key code and which modifier keys
@@ -147,6 +147,7 @@ Run the binary with a flag: `~/Applications/Switchmypanes.app/Contents/MacOS/Swi
 | `--list-windows` | prints the windows the switcher would show, with desktop / minimized status and whether a preview could be captured; `--exclude=<bundle id>` tries an exclusion | none |
 | `--render-overlay <folder>` | draws the overlays and the Preferences window offscreen, with sample windows, into PNG files (the blur is approximated by a flat fill) | none |
 | `--selftest-search` | drives the type-to-search flow of the real controller step by step, including the real key-to-character conversion (nothing is drawn) | none |
+| `--selftest-menu-bar` | builds the menu bar menu against throwaway settings and clicks its items | none (uses a throwaway settings store, never yours) |
 | `--selftest-menu` | checks the right-click menu on a tile: what it offers, what is greyed out, what each item does, and the pinning rule | none |
 | `--selftest-menu-popup` | opens the real overlay and the real right-click menu for about a second, cancels it, and checks it unwinds | the overlay and a menu flash on screen |
 | `--selftest-arrows` | checks that Down / Up pick the tile that is really drawn below / above, for every window count, tile size and the list view (offscreen) | none |
@@ -192,5 +193,5 @@ XCTest is not available with only the Command Line Tools, so the logic checks ar
 15. **Preferences**: record a new Snap Layouts shortcut (⌃⌥B) and check the old one stops working; ⌘Tab and ⌥← are refused; record ⌃⌥Tab for the switcher (releasing either key commits); the reset arrows work; while recording, the current shortcut does not trigger.
 16. **Open at login**: turn it on from the installed copy, approve it in System Settings if asked, log out and in: the menu bar icon returns.
 17. **Look and animation**: open the switcher: a glass panel, tags on other-desktop / minimized tiles, and a highlight ring that slides as you press Tab. Snap a window with Control+Option+Left, drag one to an edge, and fill a layout: a glowing outline travels to where each window lands and fades. Turn Reduce motion on in System Settings → Accessibility → Display: the overlays appear instantly and nothing animates.
-18. **Menu bar**: Pause stops every shortcut; Resume restores them; Quit removes the icon.
+18. **Menu bar**: the menu shows the status and four tick-box toggles (try switching Snapping off and on); Pause > For 1 hour stops every shortcut and the status says when it ends (Resume restores them at once); Pause > Until I resume; Shortcuts… opens the cheat sheet (re-record a shortcut in Preferences and reopen it: it follows); Quit removes the icon.
 </details>

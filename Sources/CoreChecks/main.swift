@@ -781,5 +781,26 @@ do {
     eq(ListPreference(rawValue: "auto"), .auto, "the list preference is saved by name")
 }
 
+section("Cheat sheet and pausing")
+do {
+    let def = ShortcutCheatSheet.sections(config: ShortcutConfig(), layoutsKeyLabel: "Z")
+    eq(def.map(\.title), ["Window switcher", "Snapping", "Snap Layouts"], "three sections")
+    func keys(_ s: [ShortcutCheatSheet.Section], _ title: String) -> String? { s.flatMap(\.rows).first { $0.title == title }?.keys }
+    eq(keys(def, "Open (hold, then press)"), "⌥⇥", "the switcher shortcut"); eq(keys(def, "Left / right half"), "⌃⌥← →", "snapping uses the snap modifiers")
+    eq(keys(def, "Move to another display"), "⌃⌥⇧← →", "Shift is added for moving displays"); eq(keys(def, "Open the layout picker"), "⌥Z", "Snap Layouts")
+    eq(keys(def, "Close the highlighted window"), "⌘W", "close is Command+W")
+    var custom = ShortcutConfig(); custom.switcherModifier = [.control, .option]; custom.snapModifiers = [.control, .command]; custom.layoutsModifier = [.control, .option]
+    let c2 = ShortcutCheatSheet.sections(config: custom, layoutsKeyLabel: "B")
+    eq(keys(c2, "Open (hold, then press)"), "⌃⌥⇥", "re-recorded switcher modifiers show up"); eq(keys(c2, "Maximize"), "⌃⌘↑", "re-recorded snap modifiers show up")
+    eq(keys(c2, "Open the layout picker"), "⌃⌥B", "re-recorded Snap Layouts key shows up"); eq(keys(c2, "Switch"), "release ⌃⌥", "release hint follows the modifier")
+    var off = ShortcutConfig(); off.snapEnabled = false; off.layoutsEnabled = false
+    eq(ShortcutCheatSheet.sections(config: off, layoutsKeyLabel: "Z").map(\.title), ["Window switcher", "Snapping (off)", "Snap Layouts (off)"], "switched-off features are marked, not hidden")
+    let t0 = Date(timeIntervalSince1970: 1_000_000)
+    let end = PauseSchedule.endDate(afterSeconds: 3600, from: t0)
+    eq(end.timeIntervalSince(t0), 3600, "pause for an hour ends an hour later")
+    check(!PauseSchedule.hasEnded(until: end, now: t0.addingTimeInterval(1800)), "half way through: still paused"); check(PauseSchedule.hasEnded(until: end, now: end), "at the deadline: over")
+    check(PauseSchedule.hasEnded(until: end, now: end.addingTimeInterval(500)), "after the Mac slept past it: over"); check(!PauseSchedule.hasEnded(until: nil, now: end.addingTimeInterval(86_400 * 30)), "no deadline (until I resume): never ends by itself")
+}
+
 print("\n\(total - failures)/\(total) checks passed")
 exit(failures == 0 ? 0 : 1)

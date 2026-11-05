@@ -25,6 +25,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, KeyboardMonitorDelegat
     private lazy var statusItem = StatusItemController(settings: settings)
     private lazy var onboarding = OnboardingWindowController(keyboardActive: { [weak self] in self?.monitor.isRunning ?? false })
     private var preferencesWindow: NSWindow?
+    private lazy var cheatSheet = ShortcutCheatSheetController(settings: settings)
+    private var pauseWork: DispatchWorkItem?
     private var retryTimer: Timer?
     private var styleObserver: AnyCancellable?
     private var transparencyObserver: AnyCancellable?
@@ -34,10 +36,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, KeyboardMonitorDelegat
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSAppleEventManager.shared().setEventHandler(self, andSelector: #selector(handleURL(_:reply:)),
                                                      forEventClass: AEEventClass(kInternetEventClass), andEventID: AEEventID(kAEGetURL))
-        statusItem.onPreferences = { [weak self] in self?.showPreferences() }
-        statusItem.onPermissions = { [weak self] in self?.onboarding.show() }
-        statusItem.onTogglePause = { [weak self] in self?.setPaused(!(self?.settings.paused ?? false)) }
-        statusItem.keyboardActive = { [weak self] in self?.monitor.isRunning ?? false }
+        statusItem.menuBar.onPreferences = { [weak self] in self?.showPreferences() }
+        statusItem.menuBar.onPermissions = { [weak self] in self?.onboarding.show() }
+        statusItem.menuBar.onShortcuts = { [weak self] in self?.cheatSheet.show() }
+        statusItem.menuBar.onPause = { [weak self] seconds in self?.pause(for: seconds) }
+        statusItem.menuBar.onResume = { [weak self] in self?.setPaused(false) }
+        statusItem.menuBar.keyboardActive = { [weak self] in self?.monitor.isRunning ?? false }
+        // A timed pause is wall-clock: if the Mac slept through the deadline, resume when it wakes.
+        NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.resumeIfPauseEnded() }
+        }
         _ = statusItem
 
         // The overlay look follows Preferences (panels pick it up the next time they appear).
@@ -109,6 +117,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, KeyboardMonitorDelegat
         settings.paused = paused
         monitor.isPaused = paused
         if paused { switcher.cancel(); picker.cancel(); assist.cancel(); dragSnapper.reset(); linked.removeAll(); snapper.motion.cancel() }
+        else { pauseWork?.cancel(); pauseWork = nil; settings.pausedUntil = nil }
+    }
+
+    /// Pause for a while (`seconds`) or until the user resumes (nil).
+    private func pause(for seconds: TimeInterval?) {
+        setPaused(true)
+        guard let seconds else { return }
+        settings.pausedUntil = PauseSchedule.endDate(afterSeconds: seconds, from: Date())
+        let work = DispatchWorkItem { [weak self] in self?.resumeIfPauseEnded() }
+        pauseWork = work
+        DispatchQueue.main.asyncAfter(wallDeadline: .now() + seconds + 0.5, execute: work)     // wall clock, so sleep counts
+    }
+
+    private func resumeIfPauseEnded() {
+        if settings.paused, PauseSchedule.hasEnded(until: settings.pausedUntil, now: Date()) { setPaused(false) }
     }
 
     private func showPreferences() {
@@ -126,12 +149,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, KeyboardMonitorDelegat
         preferencesWindow?.makeKeyAndOrderFront(nil)
     }
 
-    /// switchmypanes://preferences | permissions | pause | resume
+    /// switchmypanes://preferences | permissions | shortcuts | pause | resume
     @objc private func handleURL(_ event: NSAppleEventDescriptor, reply: NSAppleEventDescriptor) {
         guard let s = event.paramDescriptor(forKeyword: AEKeyword(keyDirectObject))?.stringValue,
               let host = URL(string: s)?.host else { return }
         switch host {
         case "preferences": showPreferences()
+        case "shortcuts": cheatSheet.show()
         case "permissions": onboarding.show()
         case "pause": setPaused(true)
         case "resume": setPaused(false)

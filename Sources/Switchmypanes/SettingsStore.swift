@@ -4,8 +4,8 @@ import SwitchmypanesCore
 /// User settings, saved in UserDefaults (local to this Mac, nothing is sent anywhere).
 @MainActor
 final class SettingsStore: ObservableObject {
-    static let shared = SettingsStore()
-    private let d = UserDefaults.standard
+    static let shared = SettingsStore(defaults: .standard)
+    private let d: UserDefaults
 
     @Published var switcherEnabled: Bool { didSet { d.set(switcherEnabled, forKey: "switcherEnabled") } }
     @Published var snapEnabled: Bool { didSet { d.set(snapEnabled, forKey: "snapEnabled") } }
@@ -54,8 +54,12 @@ final class SettingsStore: ObservableObject {
     @Published var gap: Double { didSet { d.set(gap, forKey: "gap") } }
     /// Not saved: pausing lasts until you resume or quit.
     @Published var paused = false
+    /// When a timed pause ("pause for an hour") ends; nil = paused until you resume. Not saved.
+    var pausedUntil: Date?
 
-    private init() {
+    /// `defaults` is injectable so tests can use a throwaway store instead of the user's real settings.
+    init(defaults: UserDefaults) {
+        d = defaults
         d.register(defaults: ["switcherEnabled": true, "snapEnabled": true, "dragSnapEnabled": true, "layoutsEnabled": true, "snapAssistEnabled": true, "includeOtherDesktops": true, "includeFullScreen": true, "includeMinimized": true, "keepPreviewsFresh": true, "snapAnimationsEnabled": true, "overlayStyle": "glass", "tileSize": "medium", "listMode": "auto", "overlayTransparency": 0.35, "linkedResizeEnabled": true, "previewExcludedApps": PreviewPolicy.defaultExcludedApps, "gap": 0.0,
                               "snapModifiers": ShortcutModifiers([.control, .option]).rawValue,
                               "switcherModifier": ShortcutModifiers.option.rawValue,
