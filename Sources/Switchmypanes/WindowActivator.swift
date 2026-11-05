@@ -10,7 +10,11 @@ import AppKit
 @MainActor
 final class WindowActivator {
     private let finder: AXWindowFinder
-    init(ids: WindowIDProvider) { finder = AXWindowFinder(ids: ids) }
+    private let focus: WindowFocusProvider?
+    private let spaces: SpaceProvider
+    init(ids: WindowIDProvider, focus: WindowFocusProvider? = SkyLightWindowFocus(), spaces: SpaceProvider = makeSpaceProvider()) {
+        finder = AXWindowFinder(ids: ids); self.focus = focus; self.spaces = spaces
+    }
 
     func activate(_ info: WindowInfo) {
         if info.isOnAnotherSpace {
@@ -22,7 +26,9 @@ final class WindowActivator {
 
     /// Window on another desktop / a full-screen app.
     ///
-    /// Accessibility cannot see (or raise) windows on a Space that is not showing, so the order is:
+    /// Accessibility cannot see (or raise) windows on a Space that is not showing, so: switch to the desktop, focus the
+    /// window (both via isolated private calls, see `SpaceProvider` / `WindowFocusProvider`), then raise it through
+    /// Accessibility once it is reachable. The original public-only order, still used as the fallback, was:
     /// 1. ask the application to come to the front. With macOS's default setting ("When switching to an
     ///    application, switch to a Space with open windows for the application") this makes macOS
     ///    switch to that app's Space by itself;
@@ -34,8 +40,16 @@ final class WindowActivator {
     private func onOtherSpace(_ info: WindowInfo, perform: @escaping (AXUIElement, AXUIElement) -> Void) {
         let appEl = AX.app(pid: info.pid)
         if let app = NSRunningApplication(processIdentifier: info.pid), app.isHidden { app.unhide() }
-        AXUIElementSetAttributeValue(appEl, kAXFrontmostAttribute as CFString, kCFBooleanTrue)
-        NSRunningApplication(processIdentifier: info.pid)?.activate()
+        // 1. Switch to the window's desktop. Asking the APP to come forward is not enough when the app has another window
+        //    on the desktop you are looking at: macOS then just focuses that one and never switches.
+        let switched = spaces.switchToSpace(ofWindow: info.id)
+        // 2. Focus that exact window (also makes its app frontmost and the window the key window).
+        let focused = focus?.focus(pid: info.pid, windowID: info.id) ?? false
+        // 3. Last resort: ask the app itself (enough when the app has no window on this desktop).
+        if !switched && !focused {
+            AXUIElementSetAttributeValue(appEl, kAXFrontmostAttribute as CFString, kCFBooleanTrue)
+            NSRunningApplication(processIdentifier: info.pid)?.activate()
+        }
         let done = Flag()
         for delay in [0.3, 0.6, 1.0, 1.6, 2.4] {
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in

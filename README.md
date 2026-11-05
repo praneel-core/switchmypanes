@@ -22,7 +22,7 @@ Free, local only: no accounts, no network calls, no analytics. Phase 1 of 3: see
   hidden too. Apps like Claude or Slack that "close" a window to the
   background without destroying it are NOT listed (they are not really showing anywhere). Toggle in Preferences.
 - **Other desktops and full-screen apps**: the overlay also lists windows on other desktops (Spaces) and full-screen
-  apps, each with a small "Desktop 2" / "Full screen" tag. Choosing one makes macOS switch to that desktop.
+  apps, each with a small "Desktop 2" / "Full screen" tag. Choosing one switches to that desktop and focuses that exact window, even when the same app also has a window on the desktop you are on (for example VS Code full screen on one desktop and another VS Code window here).
   Both can be turned off in Preferences. macOS cannot capture a window that is not showing, so these tiles show the last picture
   taken while the window was visible. To have one ready, Switchmypanes takes a picture of a window when you *leave*
   it, and once after you have settled into it (plus a slow refresh if you stay a long time). There is no timer
@@ -106,6 +106,8 @@ PASS/FAIL.
 
 `build/Switchmypanes.app/Contents/MacOS/Switchmypanes --list-windows` prints, in the terminal, the windows the
 switcher would show (app, title, desktop / minimized status, and whether a thumbnail could be captured), then exits. Useful for "why is this window (not) listed".
+
+`Switchmypanes --selftest-spaces` checks switching to a window on another desktop whose app also has a window on this one. **It switches your desktop and back** (needs such a setup, otherwise it says SKIPPED).
 
 ## Menu bar and URL scheme
 

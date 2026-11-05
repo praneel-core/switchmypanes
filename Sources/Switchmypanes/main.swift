@@ -261,6 +261,72 @@ if CommandLine.arguments.contains("--selftest-linked") {
     exit(allPassed ? 0 : 1)
 }
 
+// Diagnostic: `Switchmypanes --selftest-spaces` tests switching to a window on ANOTHER desktop whose app also has a
+// window on the current desktop (the case that used to fail). It SWITCHES YOUR DESKTOP and then switches back.
+if CommandLine.arguments.contains("--selftest-spaces") {
+    var passed = false
+    MainActor.assumeIsolated {
+        func spin(_ s: Double) { RunLoop.current.run(until: Date().addingTimeInterval(s)) }
+        func line(_ s: String) { print(s); fflush(stdout) }
+        let ids = PrivateAXWindowIDProvider(), spaces = makeSpaceProvider()
+        let inventory = WindowInventory(ids: ids, spaces: spaces, options: { SpaceFilterOptions() })
+        inventory.startTracking()
+        spin(3.5)
+        let windows = inventory.snapshot(includeOtherSpaces: true, for: nil)
+        guard let startSpaces = spaces.snapshot()?.activeSpaces,
+              let home = windows.first(where: { $0.isOnCurrentSpace }),
+              let target = windows.first(where: { w in
+                  if case .otherSpace = w.placement { return windows.contains { $0.pid == w.pid && $0.isOnCurrentSpace } }
+                  return false
+              }) else {
+            line("SKIPPED: no window on another desktop whose app also has a window on this desktop (put an app such as VS Code full screen on one desktop and keep another of its windows on this one, then run this again)"); passed = true; return
+        }
+        line("current desktop windows start with: \(home.appName) — \(home.title)")
+        line("target (other desktop, same app also here): \(target.appName) — \(target.title) [\(target.spaceLabel ?? "?")]")
+        SkyLightWindowFocus.debug = { line("   [skylight] \($0)") }
+        let skyLight = SkyLightWindowFocus()
+        line("SkyLight focus available: \(skyLight != nil)")
+
+        func activeSpaces() -> Set<Int> { spaces.snapshot()?.activeSpaces ?? [] }
+        func waitForSpaceChange(from: Set<Int>, seconds: Double) -> Bool {
+            let end = Date().addingTimeInterval(seconds)
+            while Date() < end { if activeSpaces() != from { return true }; spin(0.2) }
+            return false
+        }
+        func goHome() {
+            guard activeSpaces() != startSpaces else { return }
+            _ = spaces.switchToSpace(ofWindow: home.id)
+            let end = Date().addingTimeInterval(5)
+            while Date() < end && activeSpaces() != startSpaces { spin(0.2) }
+        }
+
+        // 1. the OLD method (ask the app to come forward): reproduces the bug
+        line("\n-- old method (app-level activation only)")
+        let oldActivator = WindowActivator(ids: ids, focus: nil)
+        oldActivator.activate(target)
+        let oldSwitched = waitForSpaceChange(from: startSpaces, seconds: 3)
+        line(oldSwitched ? "old method DID switch desktop" : "old method did NOT switch desktop (this is the bug)")
+        goHome(); spin(1.0)
+
+        // 2. the NEW method
+        line("\n-- new method (focus that exact window)")
+        let newActivator = WindowActivator(ids: ids)
+        newActivator.activate(target)
+        let newSwitched = waitForSpaceChange(from: startSpaces, seconds: 4)
+        spin(1.0)
+        line(newSwitched ? "PASS: switched to the other desktop" : "FAIL: did not switch desktop")
+        let frontPID = NSWorkspace.shared.frontmostApplication?.processIdentifier
+        line(frontPID == target.pid ? "PASS: the app is frontmost" : "NOTE: frontmost app is not the target app")
+        withExtendedLifetime(oldActivator) {}
+        withExtendedLifetime(newActivator) {}
+        goHome(); spin(1.5)
+        let back = activeSpaces() == startSpaces
+        line(back ? "returned to the original desktop" : "WARNING: could not return to the original desktop automatically")
+        passed = newSwitched
+    }
+    exit(passed ? 0 : 1)
+}
+
 let app = NSApplication.shared
 let delegate = MainActor.assumeIsolated { AppDelegate() }
 app.delegate = delegate

@@ -21,12 +21,15 @@ protocol SpaceProvider {
     func spaces(ofWindow id: CGWindowID) -> [Int]
     /// Does the window server consider the window really showing (somewhere)? nil = unknown.
     func isOrderedIn(window id: CGWindowID) -> Bool?
+    /// Makes the desktop (Space) that holds this window the current one on its display. Returns true if it is now current.
+    func switchToSpace(ofWindow id: CGWindowID) -> Bool
 }
 
 struct CurrentSpaceOnlyProvider: SpaceProvider {
     func snapshot() -> SpaceSnapshot? { nil }
     func spaces(ofWindow id: CGWindowID) -> [Int] { [] }
     func isOrderedIn(window id: CGWindowID) -> Bool? { nil }
+    func switchToSpace(ofWindow id: CGWindowID) -> Bool { false }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -37,17 +40,21 @@ struct CurrentSpaceOnlyProvider: SpaceProvider {
 //   CGSCopyManagedDisplaySpaces(cid)           -> per display: its Spaces and its current Space
 //   CGSCopySpacesForWindows(cid, mask, [wid])  -> IDs of the Spaces a window is on (mask 7 = all)
 //   CGSWindowIsOrderedIn(cid, wid, &flag)      -> is the window really showing? (OPTIONAL: if missing we just don't filter ghosts)
+//   CGSManagedDisplaySetCurrentSpace(cid, displayUUID, spaceID) -> switch a display to a desktop (OPTIONAL: without it
+//                                                  we rely on the app-level activation, which only works if the app has no window here)
 // ─────────────────────────────────────────────────────────────────────────────
 struct CGSSpaceProvider: SpaceProvider {
     private typealias MainConnection = @convention(c) () -> Int32
     private typealias CopyManaged = @convention(c) (Int32) -> Unmanaged<CFArray>?
     private typealias CopySpaces = @convention(c) (Int32, Int32, CFArray) -> Unmanaged<CFArray>?
     private typealias IsOrderedIn = @convention(c) (Int32, UInt32, UnsafeMutablePointer<DarwinBoolean>) -> Int32
+    private typealias SetCurrentSpace = @convention(c) (Int32, CFString, Int) -> Int32
 
     private let mainConnection: MainConnection
     private let copyManaged: CopyManaged
     private let copySpaces: CopySpaces
     private let orderedIn: IsOrderedIn?
+    private let setCurrentSpace: SetCurrentSpace?
 
     init?() {
         func load(_ name: String) -> UnsafeMutableRawPointer? { dlsym(UnsafeMutableRawPointer(bitPattern: -2), name) }
@@ -57,6 +64,7 @@ struct CGSSpaceProvider: SpaceProvider {
         copyManaged = unsafeBitCast(b, to: CopyManaged.self)
         copySpaces = unsafeBitCast(c, to: CopySpaces.self)
         orderedIn = load("CGSWindowIsOrderedIn").map { unsafeBitCast($0, to: IsOrderedIn.self) }
+        setCurrentSpace = load("CGSManagedDisplaySetCurrentSpace").map { unsafeBitCast($0, to: SetCurrentSpace.self) }
         // Self-test: if the answer does not look like what we expect, do not use it at all.
         guard snapshot() != nil else { return nil }
     }
@@ -81,6 +89,18 @@ struct CGSSpaceProvider: SpaceProvider {
 
     func spaces(ofWindow id: CGWindowID) -> [Int] {
         (copySpaces(mainConnection(), 7, [id] as CFArray)?.takeRetainedValue() as? [Int]) ?? []
+    }
+
+    func switchToSpace(ofWindow id: CGWindowID) -> Bool {
+        guard let setCurrentSpace, let target = spaces(ofWindow: id).first,
+              let displays = copyManaged(mainConnection())?.takeRetainedValue() as? [[String: Any]] else { return false }
+        for d in displays {
+            guard let list = d["Spaces"] as? [[String: Any]], list.contains(where: { $0["ManagedSpaceID"] as? Int == target }),
+                  let displayID = d["Display Identifier"] as? String else { continue }
+            if (d["Current Space"] as? [String: Any])?["ManagedSpaceID"] as? Int == target { return true }   // already here
+            return setCurrentSpace(mainConnection(), displayID as CFString, target) == 0
+        }
+        return false
     }
 
     func isOrderedIn(window id: CGWindowID) -> Bool? {
