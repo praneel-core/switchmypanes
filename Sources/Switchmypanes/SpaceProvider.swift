@@ -21,15 +21,16 @@ protocol SpaceProvider {
     func spaces(ofWindow id: CGWindowID) -> [Int]
     /// Does the window server consider the window really showing (somewhere)? nil = unknown.
     func isOrderedIn(window id: CGWindowID) -> Bool?
-    /// Makes the desktop (Space) that holds this window the current one on its display. Returns true if it is now current.
-    func switchToSpace(ofWindow id: CGWindowID) -> Bool
+    /// Makes the desktop (Space) that holds this window the current one on its display, then calls `completion(true)`
+    /// (on the main thread). Takes a moment: the switch is an animation driven by macOS's Dock.
+    func switchToSpace(ofWindow id: CGWindowID, completion: @escaping (Bool) -> Void)
 }
 
 struct CurrentSpaceOnlyProvider: SpaceProvider {
     func snapshot() -> SpaceSnapshot? { nil }
     func spaces(ofWindow id: CGWindowID) -> [Int] { [] }
     func isOrderedIn(window id: CGWindowID) -> Bool? { nil }
-    func switchToSpace(ofWindow id: CGWindowID) -> Bool { false }
+    func switchToSpace(ofWindow id: CGWindowID, completion: @escaping (Bool) -> Void) { completion(false) }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -40,8 +41,11 @@ struct CurrentSpaceOnlyProvider: SpaceProvider {
 //   CGSCopyManagedDisplaySpaces(cid)           -> per display: its Spaces and its current Space
 //   CGSCopySpacesForWindows(cid, mask, [wid])  -> IDs of the Spaces a window is on (mask 7 = all)
 //   CGSWindowIsOrderedIn(cid, wid, &flag)      -> is the window really showing? (OPTIONAL: if missing we just don't filter ghosts)
-//   CGSManagedDisplaySetCurrentSpace(cid, displayUUID, spaceID) -> switch a display to a desktop (OPTIONAL: without it
-//                                                  we rely on the app-level activation, which only works if the app has no window here)
+//   CGSGetSymbolicHotKeyValue / CGSIsSymbolicHotKeyEnabled -> the user's "Move left/right a space" keyboard shortcuts.
+//                                                  Switching desktops = pressing THOSE keys (synthetic key events), so the Dock, which
+//                                                  owns desktops, does the switching and stays consistent. (OPTIONAL)
+//   CGSManagedDisplaySetCurrentSpace(cid, displayUUID, spaceID) -> switch a display directly. LAST RESORT only: it works but
+//                                                  bypasses the Dock, which then shows stale Mission Control / Dock UI.
 // ─────────────────────────────────────────────────────────────────────────────
 struct CGSSpaceProvider: SpaceProvider {
     private typealias MainConnection = @convention(c) () -> Int32
@@ -49,12 +53,16 @@ struct CGSSpaceProvider: SpaceProvider {
     private typealias CopySpaces = @convention(c) (Int32, Int32, CFArray) -> Unmanaged<CFArray>?
     private typealias IsOrderedIn = @convention(c) (Int32, UInt32, UnsafeMutablePointer<DarwinBoolean>) -> Int32
     private typealias SetCurrentSpace = @convention(c) (Int32, CFString, Int) -> Int32
+    private typealias HotKeyEnabled = @convention(c) (Int32) -> Bool
+    private typealias HotKeyValue = @convention(c) (Int32, UnsafeMutablePointer<UInt16>, UnsafeMutablePointer<UInt16>, UnsafeMutablePointer<UInt32>) -> Int32
 
     private let mainConnection: MainConnection
     private let copyManaged: CopyManaged
     private let copySpaces: CopySpaces
     private let orderedIn: IsOrderedIn?
     private let setCurrentSpace: SetCurrentSpace?
+    private let hotKeyEnabled: HotKeyEnabled?
+    private let hotKeyValue: HotKeyValue?
 
     init?() {
         func load(_ name: String) -> UnsafeMutableRawPointer? { dlsym(UnsafeMutableRawPointer(bitPattern: -2), name) }
@@ -65,6 +73,8 @@ struct CGSSpaceProvider: SpaceProvider {
         copySpaces = unsafeBitCast(c, to: CopySpaces.self)
         orderedIn = load("CGSWindowIsOrderedIn").map { unsafeBitCast($0, to: IsOrderedIn.self) }
         setCurrentSpace = load("CGSManagedDisplaySetCurrentSpace").map { unsafeBitCast($0, to: SetCurrentSpace.self) }
+        hotKeyEnabled = load("CGSIsSymbolicHotKeyEnabled").map { unsafeBitCast($0, to: HotKeyEnabled.self) }
+        hotKeyValue = load("CGSGetSymbolicHotKeyValue").map { unsafeBitCast($0, to: HotKeyValue.self) }
         // Self-test: if the answer does not look like what we expect, do not use it at all.
         guard snapshot() != nil else { return nil }
     }
@@ -91,16 +101,64 @@ struct CGSSpaceProvider: SpaceProvider {
         (copySpaces(mainConnection(), 7, [id] as CFArray)?.takeRetainedValue() as? [Int]) ?? []
     }
 
-    func switchToSpace(ofWindow id: CGWindowID) -> Bool {
-        guard let setCurrentSpace, let target = spaces(ofWindow: id).first,
-              let displays = copyManaged(mainConnection())?.takeRetainedValue() as? [[String: Any]] else { return false }
-        for d in displays {
-            guard let list = d["Spaces"] as? [[String: Any]], list.contains(where: { $0["ManagedSpaceID"] as? Int == target }),
-                  let displayID = d["Display Identifier"] as? String else { continue }
-            if (d["Current Space"] as? [String: Any])?["ManagedSpaceID"] as? Int == target { return true }   // already here
-            return setCurrentSpace(mainConnection(), displayID as CFString, target) == 0
+    func switchToSpace(ofWindow id: CGWindowID, completion: @escaping (Bool) -> Void) {
+        guard let target = spaces(ofWindow: id).first,
+              let displays = copyManaged(mainConnection())?.takeRetainedValue() as? [[String: Any]],
+              let d = displays.first(where: { ($0["Spaces"] as? [[String: Any]])?.contains { $0["ManagedSpaceID"] as? Int == target } == true }),
+              let displayID = d["Display Identifier"] as? String,
+              let order = (d["Spaces"] as? [[String: Any]])?.compactMap({ $0["ManagedSpaceID"] as? Int }),
+              let current = (d["Current Space"] as? [String: Any])?["ManagedSpaceID"] as? Int else { completion(false); return }
+        if current == target { completion(true); return }
+
+        func activeNow() -> Int? {
+            let ds = copyManaged(mainConnection())?.takeRetainedValue() as? [[String: Any]]
+            return ds?.first { ($0["Display Identifier"] as? String) == displayID }
+                .flatMap { ($0["Current Space"] as? [String: Any])?["ManagedSpaceID"] as? Int }
         }
-        return false
+        func lastResort() {                                  // the direct call: works, but the Dock is not told
+            let ok = setCurrentSpace.map { $0(mainConnection(), displayID as CFString, target) == 0 } ?? false
+            completion(ok)
+        }
+
+        // The normal way: press the user's own "Move left / right a space" shortcut once per desktop to cross.
+        guard let from = order.firstIndex(of: current), let to = order.firstIndex(of: target),
+              let key = shortcut(forwards: to > from) else { lastResort(); return }
+        let steps = abs(to - from)
+        for n in 0..<steps {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.32 * Double(n)) { Self.press(key) }
+        }
+        // Wait until macOS has really arrived (it animates), then give it a moment to settle.
+        let started = Date()
+        func poll() {
+            if activeNow() == target {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { completion(true) }
+            } else if Date().timeIntervalSince(started) > 1.0 + 0.5 * Double(steps) {
+                lastResort()                                 // the shortcut did not work (disabled? blocked?)
+            } else {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { poll() }
+            }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { poll() }
+    }
+
+    /// The configured keyboard shortcut for "Move right a space" (81) or "Move left a space" (79), if it is switched on.
+    private func shortcut(forwards: Bool) -> (virtualKey: UInt16, flags: CGEventFlags)? {
+        let id: Int32 = forwards ? 81 : 79
+        guard let hotKeyEnabled, let hotKeyValue, hotKeyEnabled(id) else { return nil }
+        var keyEquivalent: UInt16 = 0, virtualKey: UInt16 = 0, modifiers: UInt32 = 0
+        guard hotKeyValue(id, &keyEquivalent, &virtualKey, &modifiers) == 0 else { return nil }
+        return (virtualKey, CGEventFlags(rawValue: UInt64(modifiers)))
+    }
+
+    /// Presses and releases that key, with exactly those modifiers (whatever the user is physically holding, such as
+    /// the Option key of the window switcher, is not included).
+    private static func press(_ key: (virtualKey: UInt16, flags: CGEventFlags)) {
+        let source = CGEventSource(stateID: .hidSystemState)
+        for down in [true, false] {
+            guard let e = CGEvent(keyboardEventSource: source, virtualKey: key.virtualKey, keyDown: down) else { continue }
+            e.flags = key.flags
+            e.post(tap: .cghidEventTap)
+        }
     }
 
     func isOrderedIn(window id: CGWindowID) -> Bool? {

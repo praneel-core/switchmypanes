@@ -40,18 +40,27 @@ final class WindowActivator {
     private func onOtherSpace(_ info: WindowInfo, perform: @escaping (AXUIElement, AXUIElement) -> Void) {
         let appEl = AX.app(pid: info.pid)
         if let app = NSRunningApplication(processIdentifier: info.pid), app.isHidden { app.unhide() }
-        // 1. Switch to the window's desktop. Asking the APP to come forward is not enough when the app has another window
-        //    on the desktop you are looking at: macOS then just focuses that one and never switches.
-        let switched = spaces.switchToSpace(ofWindow: info.id)
-        // 2. Focus that exact window (also makes its app frontmost and the window the key window).
-        let focused = focus?.focus(pid: info.pid, windowID: info.id) ?? false
-        // 3. Last resort: ask the app itself (enough when the app has no window on this desktop).
-        if !switched && !focused {
-            AXUIElementSetAttributeValue(appEl, kAXFrontmostAttribute as CFString, kCFBooleanTrue)
-            NSRunningApplication(processIdentifier: info.pid)?.activate()
-        }
+        // 1. Switch to the window's desktop (through the Dock, by pressing the user's own "move a space" shortcut).
+        //    Asking the APP to come forward is not enough when the app has another window on the desktop you are looking
+        //    at: macOS then just focuses that one and never switches.
         let done = Flag()
-        for delay in [0.3, 0.6, 1.0, 1.6, 2.4] {
+        spaces.switchToSpace(ofWindow: info.id) { [weak self] switched in
+            guard let self else { return }
+            // 2. Focus that exact window (also makes its app frontmost and the window the key window).
+            let focused = self.focus?.focus(pid: info.pid, windowID: info.id) ?? false
+            // 3. Last resort: ask the app itself (enough when the app has no window on this desktop).
+            if !switched && !focused {
+                AXUIElementSetAttributeValue(appEl, kAXFrontmostAttribute as CFString, kCFBooleanTrue)
+                NSRunningApplication(processIdentifier: info.pid)?.activate()
+            }
+            self.raiseWhenReachable(info, appEl: appEl, done: done, perform: perform)
+        }
+    }
+
+    /// Once the desktop has switched the window is visible to Accessibility: raise / act on it, exactly once.
+    private func raiseWhenReachable(_ info: WindowInfo, appEl: AXUIElement, done: Flag,
+                                    perform: @escaping (AXUIElement, AXUIElement) -> Void) {
+        for delay in [0.05, 0.3, 0.6, 1.0, 1.6, 2.4] {
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
                 guard let self, !done.value,
                       let window = self.finder.find(pid: info.pid, windowID: info.id, frame: info.frame, title: info.title)

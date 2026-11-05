@@ -295,14 +295,16 @@ if CommandLine.arguments.contains("--selftest-spaces") {
         }
         func goHome() {
             guard activeSpaces() != startSpaces else { return }
-            _ = spaces.switchToSpace(ofWindow: home.id)
-            let end = Date().addingTimeInterval(5)
-            while Date() < end && activeSpaces() != startSpaces { spin(0.2) }
+            var finished = false
+            spaces.switchToSpace(ofWindow: home.id) { _ in finished = true }
+            let end = Date().addingTimeInterval(8)
+            while Date() < end && !finished { spin(0.2) }
+            spin(0.5)
         }
 
         // 1. the OLD method (ask the app to come forward): reproduces the bug
         line("\n-- old method (app-level activation only)")
-        let oldActivator = WindowActivator(ids: ids, focus: nil)
+        let oldActivator = WindowActivator(ids: ids, focus: nil, spaces: CurrentSpaceOnlyProvider())
         oldActivator.activate(target)
         let oldSwitched = waitForSpaceChange(from: startSpaces, seconds: 3)
         line(oldSwitched ? "old method DID switch desktop" : "old method did NOT switch desktop (this is the bug)")

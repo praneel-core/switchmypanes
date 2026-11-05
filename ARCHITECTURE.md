@@ -59,7 +59,7 @@ permissions or another app.
 | Match a CG window with its AX window | `_AXUIElementGetWindow` | **private**, looked up with `dlsym`; missing -> nil -> frame/title matching |
 | Which Space a window is on, and Space kinds | `CGSCopySpacesForWindows`, `CGSCopyManagedDisplaySpaces`, `CGSMainConnectionID`, `CGSWindowIsOrderedIn` (optional) | **private**, `dlsym` + self-test in `CGSSpaceProvider`; failure -> `CurrentSpaceOnlyProvider` |
 | List windows including other Spaces | `CGWindowListCopyWindowInfo(.optionAll)` | public |
-| Switch to the desktop of a window | `CGSManagedDisplaySetCurrentSpace` | **private**, optional, in `CGSSpaceProvider` (`switchToSpace`); no slide animation |
+| Switch to the desktop of a window | the user's own "Move left/right a space" shortcut, read with `CGSGetSymbolicHotKeyValue` and pressed with synthetic key events, so the Dock switches | **private** (hotkey lookup only), in `CGSSpaceProvider.switchToSpace` (asynchronous: waits until macOS has arrived). `CGSManagedDisplaySetCurrentSpace` is kept ONLY as a last resort: it bypasses the Dock, which then shows stale Mission Control / Dock UI |
 | Focus one exact window (any desktop) | SkyLight `_SLPSSetFrontProcessWithOptions` + `SLPSPostEventRecordTo`, `GetProcessForPID` | **private**, `SkyLightWindowFocus` behind `WindowFocusProvider`; missing -> app-level activation |
 
 Private rows today: window IDs, Spaces (list, ordered-in, switch), exact-window focus. Everything private is optional: losing it degrades, never crashes.
