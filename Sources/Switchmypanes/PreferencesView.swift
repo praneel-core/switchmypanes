@@ -174,9 +174,8 @@ struct PreferencesView: View {
             }
             Section("Snap Layouts") {
                 Toggle("Snap Layouts shortcut enabled", isOn: $settings.layoutsEnabled)
-                Toggle("Resize windows placed by Snap Layouts together", isOn: $settings.linkedResizeEnabled)
-                    .disabled(!settings.layoutsEnabled)
-                Text("After you fill a layout, dragging the divider between two of its windows moves the matching edge of the windows beside it, so they stay flush. Dragging a window away, snapping it, or closing it takes it out of the group.")
+                Toggle("Resize windows placed by Snap Layouts or Snap Assist together", isOn: $settings.linkedResizeEnabled)
+                Text("After you fill a layout, or pick a window in Snap Assist for the empty half, dragging the divider between the windows moves the matching edges together, so they stay flush. Dragging a window away, snapping it elsewhere, or closing it takes it out of the group.")
                     .font(.caption).foregroundStyle(.secondary)
                 Text("Pick a layout (arrow keys, Return, or press 1–9), then choose a window for each area. Space skips an area, Esc stops. Note: with Option+Z as the shortcut, “Ω” can no longer be typed. Change the shortcut above if you need it.")
                     .font(.caption).foregroundStyle(.secondary)

@@ -54,9 +54,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, KeyboardMonitorDelegat
         picker.onGroupPlaced = { [weak self] placed, gap, bounds in self?.linked.register(placed, gap: gap, bounds: bounds) }
         snapper.onWillMoveWindow = { [weak self] pid, id in self?.linked.unlink(pid: pid, windowID: id) }
         snapper.onBeforeSnap = { [weak self] in self?.assist.cancel() }
-        snapper.onSnapped = { [weak self] zone, display, pid, id, frame in
-            self?.assist.offer(afterSnapTo: zone, on: display, pid: pid, windowID: id, snappedFrame: frame)
+        snapper.onSnapped = { [weak self] zone, display, pid, id, frame, element in
+            self?.assist.offer(afterSnapTo: zone, on: display, pid: pid, windowID: id, snappedFrame: frame, element: element)
         }
+        assist.onPairPlaced = { [weak self] placed, gap, bounds in self?.linked.register(placed, gap: gap, bounds: bounds) }
 
         if !monitor.start() || !PermissionManager.current().shortcutsReady {
             onboarding.show()

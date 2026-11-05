@@ -15,8 +15,8 @@ final class SnapController {
     var onWillMoveWindow: (pid_t, CGWindowID?) -> Void = { _, _ in }
     /// Called at the start of every snap attempt (lets Snap Assist close itself / cancel a pending offer).
     var onBeforeSnap: () -> Void = {}
-    /// Called after a window was snapped to a zone: (zone, display, pid, window id if known, the frame it was given).
-    var onSnapped: (SnapZone, DisplayInfo, pid_t, CGWindowID?, CGRect) -> Void = { _, _, _, _, _ in }
+    /// Called after a window was snapped to a zone: (zone, display, pid, window id if known, the frame it was given, the window).
+    var onSnapped: (SnapZone, DisplayInfo, pid_t, CGWindowID?, CGRect, AXUIElement) -> Void = { _, _, _, _, _, _ in }
 
     init(settings: SettingsStore, ids: WindowIDProvider) { self.settings = settings; self.ids = ids }
 
@@ -51,7 +51,7 @@ final class SnapController {
             restore.willSnap(k, currentFrame: frame, wasSnapped: state != nil)
             let target = SnapEngine.frame(for: zone, in: display.visibleFrame, gap: gap)
             WindowMover.apply(target, to: window, bounds: display.visibleFrame)
-            onSnapped(zone, display, app.processIdentifier, ids.windowID(of: window), target)
+            onSnapped(zone, display, app.processIdentifier, ids.windowID(of: window), target, window)
         case .restore:
             let target = restore.take(k) ?? SnapEngine.defaultRestoreFrame(in: display.visibleFrame)
             let bounds = layout.display(containing: target)?.visibleFrame ?? display.visibleFrame
@@ -80,6 +80,6 @@ final class SnapController {
         onBeforeSnap()
         let target = SnapEngine.frame(for: zone, in: display.visibleFrame, gap: CGFloat(settings.gap))
         place(window: window, pid: pid, target: target, on: display, preFrame: preDragFrame)
-        onSnapped(zone, display, pid, ids.windowID(of: window), target)
+        onSnapped(zone, display, pid, ids.windowID(of: window), target, window)
     }
 }

@@ -25,6 +25,9 @@ final class SnapAssistController {
     private var columns = 1
     private var target: (frame: CGRect, display: DisplayInfo)?
     private var outsideClickMonitor: Any?
+    private var snapped: LinkedGroupController.Placed?          // the window that was just snapped (the other half of the pair)
+    /// Called when a window was chosen for the empty half: the pair (snapped window, chosen window), gap, usable area.
+    var onPairPlaced: ([LinkedGroupController.Placed], CGFloat, CGRect) -> Void = { _, _, _ in }
     private var timeout: DispatchWorkItem?
 
     private let showDelay: TimeInterval = 0.25
@@ -39,8 +42,10 @@ final class SnapAssistController {
     }
 
     /// Call after every snap. Does nothing unless the snap left an empty half.
-    func offer(afterSnapTo zone: SnapZone, on display: DisplayInfo, pid: pid_t, windowID: CGWindowID?, snappedFrame: CGRect) {
+    func offer(afterSnapTo zone: SnapZone, on display: DisplayInfo, pid: pid_t, windowID: CGWindowID?, snappedFrame: CGRect,
+               element: AXUIElement) {
         cancel()
+        snapped = windowID.map { .init(pid: pid, windowID: $0, element: element) }
         guard settings.snapAssistEnabled, settings.snapEnabled, !settings.paused,
               let free = SnapEngine.assistTarget(afterSnappingTo: zone) else { return }
         let freeFrame = SnapEngine.frame(for: free, in: display.visibleFrame, gap: CGFloat(settings.gap))
@@ -60,9 +65,11 @@ final class SnapAssistController {
     func confirm() {
         guard isActive, let target, selection.index < available.count else { return }
         let w = available[selection.index]
+        let pair = [snapped].compactMap { $0 }          // cancel() below clears the stored window
         cancel()
         guard let ax = finder.find(pid: w.pid, windowID: w.id, frame: w.frame, title: w.title) else { return }
         snapper.place(window: ax, pid: w.pid, target: target.frame, on: target.display, preFrame: w.frame)
+        if let first = pair.first { onPairPlaced([first, .init(pid: w.pid, windowID: w.id, element: ax)], CGFloat(settings.gap), target.display.visibleFrame) }
         activator.activate(w)
         inventory.markUsed(w.id)
     }
@@ -75,7 +82,7 @@ final class SnapAssistController {
         thumbnails.cancel()
         panel.dismiss(); zonePreview.hide()
         isActive = false
-        available = []; target = nil
+        available = []; target = nil; snapped = nil
     }
 
     // MARK: private
